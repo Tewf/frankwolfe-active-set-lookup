@@ -43,6 +43,28 @@ right on a re-read.
 > push — cheap enough to seem worth it only where the scan is genuinely a
 > bottleneck, which argues for a subtype over complicating the default.
 
+## The draft links a private repository
+
+The comment above cites `github.com/Tewf/frankwolfe-active-set-lookup` as where
+the code lives. **This repository is private**, so that link 404s for everyone
+who reads the issue, which is worse than no link at all.
+
+Three ways out, and this one has to be settled before the comment is posted:
+
+- **Make it public first.** It is a measurement of a public library answering a
+  public issue, and there is nothing in it that is not already sayable in the
+  comment. This is the option that makes the comment strongest, since the
+  numbers become checkable by the maintainers rather than asserted.
+- **Drop the link** and let the comment stand on the numbers alone. It still
+  reads as work rather than opinion, but nobody can re-run it.
+- **Post the numbers, offer the code.** "Happy to share the harness if useful"
+  — keeps the repository private and puts the choice on them.
+
+**Recommendation: make it public before posting.** A measurement whose code
+cannot be inspected is an assertion, and the whole point of answering a
+five-year-old question this way is that the answer can be checked. The
+repository contains no personal data and no unpublished work.
+
 ## Open questions, unresolved by this repository
 
 - **Scope of "real problems".** Only Birkhoff and the L∞-ball were run. A
