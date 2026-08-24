@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  measure:
+    name: Run both scripts end to end
+    runs-on: ubuntu-latest
+    # First run precompiles FrankWolfe.jl's own dependency tree (it pulls in
+    # MathOptInterface, StaticArrays and more), which took about a minute
+    # locally; the runs themselves are seconds. 20 covers a cold cache.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1.12"
+
+      - uses: julia-actions/cache@v2
+
+      - name: Instantiate the project
+        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+
+      # Not a timing check: MEASURING.md is explicit that no timing here is
+      # asserted, a shared runner cannot reproduce the reference machine's
+      # numbers, and a red tick over noise would mean nothing. This confirms
+      # the harness still runs against whatever FrankWolfe.jl version
+      # Project.toml resolves to, end to end, and that results.csv still has
+      # the columns README.md's table describes.
+      - name: The measurement harness runs end to end
+        run: |
+          julia --project=. measurement/run.jl
+          test -s measurement/results.csv
+          test "$(wc -l < measurement/results.csv)" -eq 4
+          head -1 measurement/results.csv | grep -q "lookup_share"
+
+      - name: The microbenchmark sweep runs end to end
+        run: |
+          julia --project=. microbenchmark/run.jl
+          test -s microbenchmark/results.csv
+          head -1 microbenchmark/results.csv | grep -q "scan_miss_ns"
+
+      # The one thing this repository asserts rather than just runs: that
+      # the instrumented find_atom (instrumentation.jl) and the scan
+      # find_atom actually is (active_set.jl in the resolved FrankWolfe.jl)
+      # still agree, so a version bump that changes the loop is caught
+      # rather than silently timed as if it hadn't.
+      - name: The instrumented lookup still matches a real one
+        run: |
+          julia --project=. -e '
+            include("measurement/instrumentation.jl")
+            using .LookupInstrumentation, FrankWolfe
+            as = FrankWolfe.ActiveSet([(1.0, [1.0, 2.0]), (0.0, [3.0, 4.0])])
+            @assert FrankWolfe.find_atom(as, [3.0, 4.0]) == 2
+            @assert FrankWolfe.find_atom(as, [9.0, 9.0]) == -1
+            @assert lookup_calls() == 2
+            println("instrumentation.jl: correctness checks passed")
+          '
