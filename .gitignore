@@ -1,0 +1,19 @@
+# The HTML explainers are written for one reader and never shipped.
+explain/
+
+# Papers are cited, never redistributed.
+papers/
+*.pdf
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editors and scratch
+*.swp
+*~
+.DS_Store
+
+# Julia
+Manifest.toml
