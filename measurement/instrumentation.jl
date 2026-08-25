@@ -8,6 +8,16 @@ that one, for exactly the runs in this repository, and every other active-set
 type (`ActiveSetQuadraticProductCaching`, etc.) is untouched. The loop below
 is copied from the package verbatim; nothing about what it does changes,
 only that each call is now counted and timed.
+
+Also counts `deleteat!(active_set, idx::Int)` calls the same way, for the
+same reason: `sparse-key-and-trie`'s brief points out that every
+`find_atom` miss is followed by a `push!`, and the active set also has to
+survive `active_set_cleanup!`'s `deleteat!`, which shifts every later index
+down by one. `active_set.jl`'s own scalar `deleteat!` (line 66) is what
+both the direct drop-step call (`active_set.jl:177`) and the batch cleanup
+path (`active_set.jl:58`'s loop over a sorted index vector) end up calling,
+so overriding just the scalar method the same way `find_atom` is overridden
+catches both call sites without editing the installed package.
 """
 module LookupInstrumentation
 
@@ -15,7 +25,12 @@ using FrankWolfe
 using TimerOutputs
 
 export TIMER,
-    reset_instrumentation!, lookup_calls, lookup_hits, lookup_share_of, active_set_sizes!
+    reset_instrumentation!,
+    lookup_calls,
+    lookup_hits,
+    lookup_share_of,
+    active_set_sizes!,
+    deletion_calls
 
 const TIMER = TimerOutput()
 const CALLS = Ref(0)
@@ -26,6 +41,12 @@ const CALLS = Ref(0)
 # instrumentation never recorded and microbenchmark/'s prefix-hash sweep
 # needs as its "realistic mix" ratio.
 const HITS = Ref(0)
+# One count per scalar deleteat!(active_set, idx::Int) call, which is one
+# atom actually removed and every later atom's stored position shifted
+# down by one: active_set_cleanup!'s batch delete (a sorted index vector)
+# calls this once per index it removes, so DELETIONS counts individual
+# removals, not cleanup invocations.
+const DELETIONS = Ref(0)
 
 function FrankWolfe.find_atom(active_set::FrankWolfe.ActiveSet, atom)
     CALLS[] += 1
@@ -44,15 +65,24 @@ function FrankWolfe.find_atom(active_set::FrankWolfe.ActiveSet, atom)
     return idx
 end
 
+function Base.deleteat!(active_set::FrankWolfe.ActiveSet, idx::Int)
+    DELETIONS[] += 1
+    deleteat!(active_set.atoms, idx)
+    deleteat!(active_set.weights, idx)
+    return active_set
+end
+
 function reset_instrumentation!()
     CALLS[] = 0
     HITS[] = 0
+    DELETIONS[] = 0
     reset_timer!(TIMER)
     return nothing
 end
 
 lookup_calls() = CALLS[]
 lookup_hits() = HITS[]
+deletion_calls() = DELETIONS[]
 
 """
     lookup_share_of(total_section)

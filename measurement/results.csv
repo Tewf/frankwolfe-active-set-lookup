@@ -1,4 +1,4 @@
-problem,dimension,max_iteration,iterations_run,max_active_set,mean_active_set,find_atom_calls,find_atom_hits,total_seconds,lookup_share
-birkhoff_n25,625,8000,8002,158,138.03,159,0,0.1329,0.001435
-birkhoff_n60,3600,20000,20002,389,300.33,389,0,2.0193,0.0005777
-linf_box_d3000,3000,15000,15002,241,170.19,240,0,1.6637,0.0002139
+problem,dimension,max_iteration,iterations_run,max_active_set,mean_active_set,find_atom_calls,find_atom_hits,deleteat_calls,total_seconds,lookup_share
+birkhoff_n25,625,8000,8002,158,138.03,159,0,2,0.1417,0.00136
+birkhoff_n60,3600,20000,20002,389,300.33,389,0,1,2.1403,0.0005596
+linf_box_d3000,3000,15000,15002,241,170.19,240,0,0,1.688,0.0002161
