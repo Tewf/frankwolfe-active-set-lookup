@@ -25,6 +25,27 @@ microbenchmark/              the lookup itself, isolated from any solver
   results_prefix_collisions.csv    bucket collision stats per point
   results_prefix_crossover.csv     smallest size where each prefix-hash variant beats
                                     the scan, or none
+  sparse_pattern.jl              idea 1: key a Birkhoff atom on SparseMatrixCSC's own
+                                  rowval instead of a flattened value prefix
+  hash_trie.jl                    idea 2: a recursive hash trie over coordinate blocks,
+                                   with four coordinate-selection strategies
+  bucket_lifecycle.jl              insert! and delete-repair bookkeeping shared by any
+                                    flat key->Vector{Int} bucket index (prefix, pattern)
+  run_lifecycle.jl                  sweeps trie (k, max_depth, order) by collision stats,
+                                     then times lookup, insert and deletion-repair for
+                                     scan/prefix/pattern/trie, writes the four results
+                                     files below and the total per-iteration comparison
+  results_lifecycle_collisions.csv    the trie sweep's collision/depth stats
+  results_lifecycle_timing.csv         lookup/insert/delete-repair ns per structure
+  results_lifecycle_total.csv           the same, weighted by each real run's own
+                                         call rate, into one total ns per iteration
+  results_sparse_pattern_collisions.csv  the sparse-pattern key's own collision sweep,
+                                          for the direct 9-buckets-become-N comparison
+  test_soundness.jl              @test, not just a script: the signed-zero hazard,
+                                  checked against the prefix hash, the pattern key
+                                  (immune by construction) and the trie key (closed the
+                                  same way); the one file in this repository whose
+                                  failure means something is actually wrong, not noisy
 README.md                  the question, the numbers, the answer; leads with the answer
 README.fr.md                the same, in French, updated for the new answer; the
                              "Prefix hashing" section's detail was not translated,
@@ -34,17 +55,24 @@ MEASURING.md                the machine, the noise, and what a number here does 
 DECISIONS.md                what is Mohamed's to decide, including the draft issue comment
 CITATION.cff                how to cite this repository
 LICENSE                     MIT
-.github/workflows/ci.yml    runs all three scripts on every push; times nothing
+.github/workflows/ci.yml    runs every script on every push and asserts
+                             test_soundness.jl's @tests; times nothing
 explain/                    gitignored; HTML explainers for one reader, never shipped
 ```
 
 Two directories, one house style: `measurement/` asks whether the lookup
 costs anything in a real run; `microbenchmark/` asks how much the lookup
 itself would cost either way, with no solver around it to hide the answer
-in. None of the three scripts needs another script's own files
+in. None of the scripts needs another script's own *code*
 (`measurement/run.jl` needs `instrumentation.jl` and `problems.jl` only;
 `microbenchmark/run.jl` needs `lookup_methods.jl` and `timing.jl` only;
-`microbenchmark/run_prefix.jl` needs the same two, plus the `FrankWolfe`
-package itself to generate atoms in the exact shape `measurement/problems.jl`
-uses, not to call any of `measurement/`'s own code), so any of the three
-can be read, or rerun, on its own.
+`microbenchmark/run_prefix.jl` and `run_lifecycle.jl` need the same two
+plus whichever of `sparse_pattern.jl`/`hash_trie.jl`/`bucket_lifecycle.jl`
+they use, plus the `FrankWolfe` package itself to generate atoms in the
+exact shape `measurement/problems.jl` uses, never any of `measurement/`'s
+own modules), so any script can be read, or rerun, on its own. One
+disclosed exception, data rather than code: `run_lifecycle.jl`'s final
+step reads `measurement/results.csv` as plain CSV, to weight its own
+measured lookup/insert/repair costs by the real per-iteration call rates
+that file records, rather than reimplementing a second BPCG harness to
+get the same numbers.
