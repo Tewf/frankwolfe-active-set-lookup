@@ -8,13 +8,14 @@ on:
 
 jobs:
   measure:
-    name: Run all three scripts end to end
+    name: Run every measurement script end to end
     runs-on: ubuntu-latest
     # First run precompiles FrankWolfe.jl's own dependency tree (it pulls in
     # MathOptInterface, StaticArrays and more), which took about a minute
     # locally; measurement/run.jl and microbenchmark/run.jl themselves are
-    # seconds, run_prefix.jl's full sweep took about two minutes locally
-    # (see MEASURING.md). 20 covers a cold cache and a slower shared runner.
+    # seconds, run_prefix.jl's full sweep took about two minutes locally,
+    # run_lifecycle.jl's sweep-and-time about 30 seconds (see MEASURING.md).
+    # 20 covers a cold cache and a slower shared runner.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -79,3 +80,26 @@ jobs:
             @assert lookup_hits() == 1
             println("instrumentation.jl: correctness checks passed")
           '
+
+      # A real pass/fail check, not a "still runs" one: every @test in
+      # test_soundness.jl throws on failure, so this is the one CI step
+      # that would actually catch a sparse-pattern key or trie key
+      # regression on the signed-zero hazard, not just a crash.
+      - name: The signed-zero soundness tests pass
+        run: julia --project=. microbenchmark/test_soundness.jl
+
+      # Not a timing check, for the same reason as the other sweeps above:
+      # confirms the lookup+insert+deletion-repair lifecycle sweep still
+      # runs end to end and that its three results_*.csv files still have
+      # the columns README.md's lifecycle section describes.
+      - name: The lifecycle sweep runs end to end
+        run: |
+          julia --project=. microbenchmark/run_lifecycle.jl
+          test -s microbenchmark/results_lifecycle_collisions.csv
+          test -s microbenchmark/results_lifecycle_timing.csv
+          test -s microbenchmark/results_lifecycle_total.csv
+          test -s microbenchmark/results_sparse_pattern_collisions.csv
+          head -1 microbenchmark/results_lifecycle_collisions.csv | grep -q "atom_collision_rate"
+          head -1 microbenchmark/results_lifecycle_timing.csv | grep -q "delete_repair_ns"
+          head -1 microbenchmark/results_lifecycle_total.csv | grep -q "total_ns_per_iter"
+          head -1 microbenchmark/results_sparse_pattern_collisions.csv | grep -q "n_buckets"
