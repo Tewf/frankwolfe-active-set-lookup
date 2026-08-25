@@ -4,6 +4,45 @@ Nothing in this repository was posted anywhere. This file is every place a
 human judgement call was made or is still needed, so any of it can be
 revisited.
 
+## The soundness argument was incomplete, and here is the gap
+
+The prefix-hash write-up says a bucket hit is confirmed against the whole atom
+with `_unsafe_equal`, so a shorter hash "can only cost speed, never
+correctness". That covers **false positives**, two different atoms landing in
+one bucket. It does not cover **false negatives**, and there is one.
+
+`_unsafe_equal` compares with `!=`, so it follows `==` semantics. A `Dict`
+follows `isequal` semantics. Those disagree about exactly one thing in
+Float64: **the sign of zero**. `0.0 == -0.0` is true, `isequal(0.0, -0.0)` is
+false. So two atoms differing only in the sign of a zero are **one atom to the
+scan and two atoms to a hash**, and the lookup misses an atom the scan would
+have found. Confirming the bucket cannot help, because no bucket is reached.
+
+In FrankWolfe that means `find_atom` returns -1, `active_set_update!` takes
+its `push!` branch, and the active set silently gains a duplicate the scan
+would have merged, splitting one atom's weight across two entries.
+
+**This is not hypothetical for the very case that was measured.** An
+L-infinity ball vertex has the shape `-1.0 .* sign.(gradient)`, and
+`sign(0.0)` is `0.0`, so a zero gradient component yields `-0.0`:
+
+    -1.0 .* sign.([0.0, 2.0, -1.0])  ==  [-0.0, -1.0, 1.0]
+
+**The fix is one add per hashed coordinate.** Key the bucket on `prefix .+ 0.0`
+rather than on `prefix`: adding zero turns `-0.0` into `0.0` and leaves every
+other Float64 bit-identical, infinities and subnormals included. Cost is k
+additions, not dimension additions, so it does not disturb the timing result.
+
+NaN goes the harmless way: the scan says not equal, the hash collides and then
+fails confirmation, so both agree on not-found.
+
+Demonstrated and pinned in `microbenchmark/test_soundness.jl`, fifteen
+assertions, all passing.
+
+**Recommendation:** say this in the issue comment. A maintainer would find it
+within a day of trying the idea, and proposing a hashed active set without
+mentioning it would be proposing a silent bug.
+
 ## The draft comment for issue #244
 
 **Posting this is Mohamed's to do, not automated, not implied by anything
@@ -64,6 +103,20 @@ not repeated here.
 > needed `k=8` here; a higher-entropy vertex might need less, a more
 > degenerate one more), which argues for something tunable rather than a
 > fixed default.
+>
+> One caveat that belongs with the idea rather than after it. The confirmation
+> step makes bucket collisions harmless, but there is a false-negative case it
+> cannot reach: `_unsafe_equal` compares with `!=` and so follows `==`
+> semantics, while a `Dict` follows `isequal`, and the two disagree about the
+> sign of zero. `0.0 == -0.0` is true and `isequal(0.0, -0.0)` is false, so two
+> atoms differing only there are one atom to the scan and two to a hash, and
+> the lookup misses without ever reaching a bucket. That is reachable from your
+> own LMOs: an Linf-ball vertex is `-1.0 .* sign.(gradient)`, and a zero
+> gradient component gives `-0.0`. Keying on `prefix .+ 0.0` instead of
+> `prefix` closes it for one addition per hashed coordinate, leaving every
+> other Float64 bit-identical. NaN goes the harmless way: the scan says not
+> equal, the hash collides and then fails confirmation, so both agree.
+
 
 ## The draft links a private repository
 
