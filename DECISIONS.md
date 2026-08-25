@@ -10,7 +10,14 @@ revisited.
 else in this repository.** Ready to paste as-is if the numbers still look
 right on a re-read.
 
-> I measured this rather than guessing. `find_atom`'s linear scan is called
+**This replaces an earlier draft that concluded no advantage.** That draft
+only ever tested hashing the whole atom against a miss query; both
+restrictions turned out to matter, and relaxing them reverses the
+conclusion. The earlier text is in git history (`git log -p DECISIONS.md`),
+not repeated here.
+
+> I measured this rather than guessing, and my first pass got the wrong
+> answer, so here is the corrected one. `find_atom`'s linear scan is called
 > whenever `active_set_update!` isn't given an index, which turns out to be
 > more call sites than I expected: every "add to active set" step of BPCG
 > (`blended_pairwise.jl:374`), every pairwise step of plain PFW
@@ -22,26 +29,41 @@ right on a re-read.
 > On three real BPCG runs (Birkhoff polytope at n=25 and n=60, the L∞-ball
 > at d=3,000; code at github.com/Tewf/frankwolfe-active-set-lookup), active
 > sets topped out at 158-389 atoms and `find_atom` took 0.02%-0.14% of total
-> runtime (`measurement/results.csv`). An isolated microbenchmark (linear
-> scan vs. `Dict`, sizes 1-20k, dims 16-8,192) shows why: hashing an atom is
-> always O(dimension), so it
-> only wins once the scan's own O(dimension) worst case is actually being
-> paid, which needs either a large active set (crossover from ~50 atoms at
-> dim 16 up to several thousand at dim 8,192, for atoms with independent
-> coordinates) or atoms that are unusually easy to confuse (crossover at
-> 5-10 atoms when atoms share a long common prefix). `_unsafe_equal` is
-> exact, so a `Dict` keyed by the atom would be sound, not just faster where
-> it helps.
+> runtime (`measurement/results.csv`). I first checked whether hashing the
+> *whole* atom would help (linear scan vs. `Dict`, sizes 1-20k, dims
+> 16-8,192) and it doesn't: hashing an atom is always O(dimension), so a
+> full-atom `Dict` only wins once the scan's own O(dimension) worst case is
+> actually being paid, which these three runs never came close to.
 >
-> So: no advantage on what I measured, and I think this can be closed on
-> that basis unless someone has a workload where active sets do grow into
-> the thousands. If it's worth doing anyway for such a workload, would you
-> want a hash-augmented default `ActiveSet`, or a separate subtype the way
-> `ActiveSetQuadraticProductCaching` (`active_set_quadratic.jl`) already is?
+> That was the wrong question, though: nobody has to hash the *whole* atom.
+> A hash over just the first `k` coordinates costs O(k), independent of
+> dimension, and is exactly as sound as a full-atom hash, since a bucket
+> hit still gets confirmed against the whole atom with the same exact
+> `_unsafe_equal` before being trusted; a shorter hash can only cost speed,
+> never correctness. I timed that too (`microbenchmark/run_prefix.jl`),
+> against `FrankWolfe.jl`'s own atom shapes this time, not generic random
+> vectors: Birkhoff permutation matrices and L∞-ball box corners, generated
+> by calling `BirkhoffPolytopeLMO`/`LpNormBallLMO{Inf}` directly, and
+> against a hit query (the atom already present, forcing the scan through
+> the whole match) as well as a miss. A `k=8` prefix hash beats the scan for
+> every alphabet and query mix tested, at active-set sizes below every one
+> of the three real runs' own maximum
+> (`microbenchmark/results_prefix_crossover.csv`): 500.6ns vs. 949.4ns on a
+> miss at active-set size 158 (Birkhoff n=25's own maximum), 350.5ns vs.
+> 488.2ns on a hit at the same size.
+>
+> So: contrary to what I first wrote here, a prefix-hashed active set would
+> help, at exactly the active-set sizes this workload reaches.
 > `active_set_cleanup!`'s `deleteat!` shifts every index past the one
 > removed, so a hash→index map needs upkeep on every drop, not just every
-> push; cheap enough to seem worth it only where the scan is genuinely a
-> bottleneck, which argues for a subtype over complicating the default.
+> push, the same cost a full-atom hash would have paid. Would you want a
+> hash-augmented default `ActiveSet` keyed by a short prefix, or a separate
+> subtype the way `ActiveSetQuadraticProductCaching`
+> (`active_set_quadratic.jl`) already is? I'd lean subtype: the right `k`
+> likely depends on the polytope (permutation matrices and box corners both
+> needed `k=8` here; a higher-entropy vertex might need less, a more
+> degenerate one more), which argues for something tunable rather than a
+> fixed default.
 
 ## The draft links a private repository
 
@@ -67,19 +89,29 @@ repository contains no personal data and no unpublished work.
 
 ## Open questions, unresolved by this repository
 
-- **Scope of "real problems".** Only Birkhoff and the L∞-ball were run. A
-  problem whose optimum genuinely needs thousands of active vertices (a
-  spectrahedron at high dimension, an adversarially-designed cost) was not
-  tried, and might reach the microbenchmark's generic crossover. The
-  microbenchmark's `adversarial` scenario is a bound, not an observation;
-  no `FrankWolfe.jl` polytope was found whose vertices are that confusable.
+- **Choosing `k`.** `k=8` was the smallest prefix that cleared every real
+  alphabet's own observed maximum in `microbenchmark/run_prefix.jl`'s
+  sweep, not a value derived from a formula; a polytope with atoms more
+  degenerate than Birkhoff's permutation matrices (which needed `k=8`
+  themselves) could need more, and this repository has no rule for picking
+  it beyond "sweep `k` and check the collision rate."
+- **Scope of "real problems".** Only Birkhoff and the L∞-ball were run.
+  Both are now covered by `microbenchmark/run_prefix.jl`'s alphabet-matched
+  sweep, so the collision behaviour that made the original full-hash answer
+  hold (or not) is measured rather than bounded. A problem whose optimum
+  genuinely needs thousands of active vertices (a spectrahedron at high
+  dimension, an adversarially-designed cost) still was not tried, and a
+  polytope whose vertices are more confusable than a permutation matrix's
+  flattened prefix (100% bucket collision at `k=8`, and the prefix hash
+  still won) has not been found or ruled out.
 - **PFW and BCG were found, not measured.** `references.md` and the draft
   above name four more call sites than the task's own framing listed
   (`pairwise.jl`, `blended_cg.jl`, and two generic drivers); only BPCG was
   run end to end. Worth a second harness pass if this becomes a live PR.
-- **README.fr.md** is a full draft, not a stub, but technical French
-  benefits from a native read before anything with this repository's URL in
-  it goes out. A pass, not a rewrite, is what it needs.
+- **README.fr.md** was updated for the new headline and answer, but the
+  fuller "Prefix hashing" section that carries the crossover table and the
+  collision-rate explanation was not translated; a native read is still
+  worth doing before anything with this repository's URL in it goes out.
 - **The CI workflow was written, not observed green.** No GitHub run of
   `.github/workflows/ci.yml` has happened yet; it should be watched once
   pushed, per this repository's own no-push rule.
