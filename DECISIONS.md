@@ -110,9 +110,13 @@ not repeated here.
 > semantics, while a `Dict` follows `isequal`, and the two disagree about the
 > sign of zero. `0.0 == -0.0` is true and `isequal(0.0, -0.0)` is false, so two
 > atoms differing only there are one atom to the scan and two to a hash, and
-> the lookup misses without ever reaching a bucket. That is reachable from your
-> own LMOs: an Linf-ball vertex is `-1.0 .* sign.(gradient)`, and a zero
-> gradient component gives `-0.0`. Keying on `prefix .+ 0.0` instead of
+> the lookup misses without ever reaching a bucket. I could not reach it
+> through your bundled LMOs: `LpNormBallLMO{Inf}` returns `-1.0` at a zero
+> gradient component, not the `-0.0` a naive `-1.0 .* sign.(g)` would give,
+> and neither alphabet I measured contains a negative zero at all. So it is a
+> gap in the contract rather than a live bug, and it would bite a
+> user-supplied LMO or an atom built by scaling or negation elsewhere. Keying
+> on `prefix .+ 0.0` instead of
 > `prefix` closes it for one addition per hashed coordinate, leaving every
 > other Float64 bit-identical. NaN goes the harmless way: the scan says not
 > equal, the hash collides and then fails confirmation, so both agree.

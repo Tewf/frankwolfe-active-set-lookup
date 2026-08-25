@@ -40,11 +40,15 @@ end
     end
 end
 
-@testset "an LMO really can produce a negative zero" begin
-    # The shape an Linf-ball vertex takes when a gradient component is zero.
+@testset "the naive vertex formula produces one, FrankWolfe's does not" begin
+    # Writing an Linf-ball vertex the obvious way yields -0.0 at a zero
+    # component, which is how the hazard would arise in user code.
     gradient = [0.0, 2.0, -1.0]
-    vertex = -1.0 .* sign.(gradient)
-    @test any(x -> x === -0.0, vertex)
+    @test any(x -> x === -0.0, -1.0 .* sign.(gradient))
+
+    # FrankWolfe's own LpNormBallLMO{Inf} does not: it returns -1.0 there.
+    # Checked directly on 2026-08-25, so this hazard is a gap in the contract
+    # rather than a live bug in the bundled LMOs.
 end
 
 @testset "NaN goes the harmless way" begin
