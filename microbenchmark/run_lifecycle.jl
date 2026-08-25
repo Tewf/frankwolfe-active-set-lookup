@@ -137,6 +137,31 @@ open(joinpath(@__DIR__, "results_lifecycle_collisions.csv"), "w") do io
     end
 end
 
+# Idea 1's own collision behaviour, at the same SIZES x K_GRID points the
+# trie sweep above covers, for the direct comparison README.md draws
+# against results_prefix_collisions.csv's original k=8, 9-bucket finding
+# (Birkhoff only: pattern_key needs SparseMatrixCSC.rowval).
+pattern_sweep_rows = []
+for sc in scenarios
+    sc.sparse || continue
+    for size in SIZES, k in K_GRID
+        k > sc.dim && continue
+        index = build_pattern_index(sc.pool[1:size], k)
+        stats = pattern_collision_stats(index)
+        push!(pattern_sweep_rows, (alphabet=sc.alphabet, dim=sc.dim, size=size, k=k, stats...))
+    end
+end
+
+open(joinpath(@__DIR__, "results_sparse_pattern_collisions.csv"), "w") do io
+    println(io, "alphabet,dim,size,k,n_atoms,n_buckets,mean_bucket_size,max_bucket_size,atom_collision_rate")
+    for r in pattern_sweep_rows
+        println(
+            io,
+            "$(r.alphabet),$(r.dim),$(r.size),$(r.k),$(r.n_atoms),$(r.n_buckets),$(round(r.mean_bucket_size,digits=3)),$(r.max_bucket_size),$(round(r.atom_collision_rate,sigdigits=4))",
+        )
+    end
+end
+
 # --- Step 2: lifecycle timing (lookup, insert, delete-repair) for scan,
 # prefix (k=8), pattern (k=8, Birkhoff only), and each alphabet's best
 # trie config, at every SIZES point. ----------------------------------
