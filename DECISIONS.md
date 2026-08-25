@@ -43,17 +43,102 @@ assertions, all passing.
 within a day of trying the idea, and proposing a hashed active set without
 mentioning it would be proposing a silent bug.
 
+## sparse-key-and-trie: what changed, and what is still a judgement call
+
+Mohamed's brief pointed at the prefix hash's weak spot directly: on Birkhoff
+atoms, `k=8` gives 9 buckets for 389 atoms, and it wins despite the key being
+nearly useless, not because of it. Two structures were built to fix that, and
+a gap in every measurement so far (lookup only, never insert or deletion) was
+closed at the same time. This section is the reasoning behind the numbers
+README.md's "Lookup is not the whole cost" reports; treat it as the audit
+trail for that section, not a restatement of it.
+
+**Idea 1, the sparse-pattern key, is a clean, low-risk win for Birkhoff-like
+atoms and should be the headline recommendation for them.** It measures
+exactly as the representation argument predicts (9 buckets become 158 or
+389, one atom per bucket, `microbenchmark/results_sparse_pattern_collisions.csv`),
+it costs the same O(k) as the flattened prefix it replaces, and it has no
+signed-zero hazard at all (the key is `Vector{Int}`, not `Vector{Float64}`,
+see `microbenchmark/test_soundness.jl`'s new testset). The only judgement
+call is scope: it needs `SparseMatrixCSC` and a one-nonzero-per-row-and-column
+structure to be this discriminating, so it is a recommendation for
+permutation-matrix-like atoms specifically, not a general replacement for the
+value-prefix hash.
+
+**Idea 2, the hash trie, does not earn adoption, and this repository is not
+recommending it.** It was swept honestly (four coordinate-selection
+strategies, `k in {4,8,16}`, `max_depth in {1,2,4}`, at every alphabet's own
+real active-set size, `microbenchmark/results_lifecycle_collisions.csv`), not
+tuned down to a config chosen to make it look bad. The best config it found
+never won on total per-iteration cost at any of the three real sizes, and at
+Birkhoff n=25's own size it lost even to the plain scan, because its own
+insert cost (building a 16-coordinate key and walking up to 4 dict levels)
+outweighs whatever it saves on lookup. The reason is structural, not a
+tuning miss: a permutation matrix's flattened coordinates each carry the same
+weak, skewed signal (about a 1-in-n chance of being 1) regardless of which
+ones a level picks, so no coordinate-*selection* strategy over that
+representation can substitute for the representation change idea 1 makes. If
+this repository is asked "should the trie's depth just be pushed further for
+Birkhoff n=60", the honest answer is: probably, eventually it would fully
+resolve (any two distinct permutation matrices must disagree somewhere in
+their flattened form), but idea 1 already gets there in one level at lower
+cost, so this was not chased further. That is a scope boundary, not a claim
+that no depth would work.
+
+**The deletion-rate finding is the most useful thing this branch found
+before comparing any structures, and it is not the finding Mohamed's brief
+anticipated.** The brief's framing ("if maintenance under `deleteat!` sinks
+all of them, that is the most useful finding available") expected repair
+cost to possibly dominate. It does not, for these three runs: `deleteat!` on
+an individual atom happened 2, 1, and 0 times across 8,002/20,002/15,002
+iterations (`measurement/instrumentation.jl`'s new `DELETIONS` counter,
+`measurement/results.csv`'s new `deleteat_calls` column). Every structure's
+repair function is real, measured, and in every case costs more per
+operation than the raw `deleteat!` shift it sits alongside
+(`microbenchmark/results_lifecycle_timing.csv`'s `raw_deleteat` rows), but at
+a rate this low it cannot move the total ranking. **This is scoped to BPCG
+with `lazy=true` run to `epsilon=1e-9`, the only algorithm actually run
+end to end in this repository** (see "Open questions" below, PFW and BCG
+were only found by grep, never run). A workload with more frequent drop
+steps, a looser tolerance, or a different algorithm could see repair cost
+matter far more; nothing here rules that out, and nothing here measured it.
+
+**The repair implementation itself is naive, and a smarter one is an open
+question, not something this branch built.** Every repair function here
+(`microbenchmark/bucket_lifecycle.jl`'s `bucket_delete_repair!`,
+`microbenchmark/hash_trie.jl`'s `trie_repair_node!`) walks every stored
+position in the whole index, because there is no way to find which entries
+moved without an added layer of indirection this branch did not build (a
+stable atom-identity to current-position map, updated once per deletion,
+rather than every affected bucket walked separately). Whether that
+indirection would be worth the extra bookkeeping on every insert, for a
+workload where deletion is not this rare, was not measured.
+
+**A file-length judgement call:** `microbenchmark/hash_trie.jl` is 285
+lines, past the ~80-logical-line trigger the ergonomic conventions set.
+Its role, "the hash trie: build it, query it, and keep it valid under
+`push!`/`deleteat!`", was judged to need the "and" the conventions ask a
+long file to avoid, because the four pieces share one recursive
+`TrieNode`/`TrieLeaf`/`TrieInternal` structure that splitting across files
+would either duplicate or expose across a file boundary for no real
+separation of concerns, the way `lookup_methods.jl` already keeps its scan,
+full-`Dict`, and prefix-hash lookups (plus their sparse-atom variants) in
+one file. Flagging it here rather than silently letting it stand.
+
 ## The draft comment for issue #244
 
 **Posting this is Mohamed's to do, not automated, not implied by anything
 else in this repository.** Ready to paste as-is if the numbers still look
 right on a re-read.
 
-**This replaces an earlier draft that concluded no advantage.** That draft
-only ever tested hashing the whole atom against a miss query; both
-restrictions turned out to matter, and relaxing them reverses the
-conclusion. The earlier text is in git history (`git log -p DECISIONS.md`),
-not repeated here.
+**This replaces an earlier draft that concluded no advantage, which was
+itself replaced by a draft that recommended a `k=8` value-prefix hash on
+lookup speed alone.** That second draft never counted insert or deletion
+cost, and never asked whether a better key existed for Birkhoff's
+permutation-matrix atoms specifically; both turn out to matter enough to
+change which structure this draft recommends, though not whether hashing
+helps at all. The earlier text is in git history (`git log -p
+DECISIONS.md`), not repeated here.
 
 > I measured this rather than guessing, and my first pass got the wrong
 > answer, so here is the corrected one. `find_atom`'s linear scan is called
@@ -92,17 +177,63 @@ not repeated here.
 > 488.2ns on a hit at the same size.
 >
 > So: contrary to what I first wrote here, a prefix-hashed active set would
-> help, at exactly the active-set sizes this workload reaches.
-> `active_set_cleanup!`'s `deleteat!` shifts every index past the one
-> removed, so a hash→index map needs upkeep on every drop, not just every
-> push, the same cost a full-atom hash would have paid. Would you want a
-> hash-augmented default `ActiveSet` keyed by a short prefix, or a separate
-> subtype the way `ActiveSetQuadraticProductCaching`
-> (`active_set_quadratic.jl`) already is? I'd lean subtype: the right `k`
-> likely depends on the polytope (permutation matrices and box corners both
-> needed `k=8` here; a higher-entropy vertex might need less, a more
-> degenerate one more), which argues for something tunable rather than a
-> fixed default.
+> help, at exactly the active-set sizes this workload reaches. But that was
+> lookup speed alone, and `find_atom_hits` in `measurement/results.csv`
+> shows all three real runs produced zero hits: every call is a miss
+> followed by a `push!`, so the real per-iteration cost is lookup plus
+> insert, and `active_set_cleanup!`'s `deleteat!` (which shifts every later
+> index down by one) means a hash→index map needs upkeep on drop too. I
+> costed all three, separately, for four structures, at each run's own
+> real active-set size (158, 389, 241). Two findings changed what I'd
+> propose.
+>
+> First: on Birkhoff, the `k=8` prefix hash wins despite the key being
+> nearly useless, not because it's good. A flattened permutation matrix's
+> first 8 entries are almost always zero, so 389 atoms collapse into 9
+> buckets, about 43 candidates per lookup, and the win comes from the O(1)
+> hash step and a cheap sparse `==`, not from narrowing anything.
+> Permutation matrices' real information, *where* the nonzero sits, is
+> already sitting in `SparseMatrixCSC`'s own `rowval` array. Hashing
+> `rowval[1:k]` instead of a flattened value prefix costs the same O(k),
+> and turns those 9 buckets into 158 or 389, one atom per bucket, at both
+> real Birkhoff sizes. On total per-iteration cost this beats the value-prefix
+> hash by 4.8-25.6x (2.72ns vs. 13.11ns at size 158; 1.88ns vs. 48.11ns at
+> size 389) and, as a bonus, has no signed-zero hazard at all: the key is
+> `Vector{Int}`, which has no sign of zero to disagree about. For the
+> L∞-ball, nothing beat the plain `k=8` value-prefix hash (3.31ns at
+> size 241): its atoms don't have the sparse structure to exploit, and the
+> hash already wins by an order of magnitude over the scan (33.52ns) there.
+>
+> Second: I also tried a hash trie, recursing into a further coordinate
+> block only where a bucket still collides, swept across four
+> coordinate-selection strategies (first-k, strided, a fixed random sample,
+> and one ordered by distinct value count, the way a composite database
+> index would be), three values of `k`, and three depths, at every real
+> active-set size. It never won outright. Even its best swept config for
+> Birkhoff n=25 (which does fully resolve every collision) was measurably
+> slower than doing nothing, because building its own key and walking
+> multiple dict levels on every insert costs more than the lookup speed it
+> buys back. I'm not proposing it: a simpler structure that wins beats a
+> more general one that doesn't earn its complexity here, though the
+> underlying idea (recurse only where atoms are genuinely confusable) may
+> still be worth it for a polytope whose vertices are more confusable than
+> either of these.
+>
+> Third, and this is the finding I did not expect: deletion barely
+> matters, in these three runs specifically. `deleteat!` on an individual
+> atom happened 2, 1, and 0 times across 8,002/20,002/15,002 iterations.
+> Repair is real and not free per operation (it costs more than the raw
+> `deleteat!` shift it sits alongside, for every structure I measured), but
+> at a rate this low it does not change which structure wins. I would not
+> generalize this to every FrankWolfe.jl workload: it's specific to BPCG
+> with `lazy=true` run to a tight tolerance, the only algorithm I ran end
+> to end. Would you want a hash-augmented default `ActiveSet`, or a
+> separate subtype the way `ActiveSetQuadraticProductCaching`
+> (`active_set_quadratic.jl`) already is? I'd lean subtype again, more
+> strongly now: which key to use is polytope-dependent in kind, not just in
+> `k` (a sparse structural key for permutation-matrix-like atoms, a value
+> prefix otherwise), which argues even harder for something the caller
+> chooses rather than a fixed default.
 >
 > One caveat that belongs with the idea rather than after it. The confirmation
 > step makes bucket collisions harmless, but there is a false-negative case it
@@ -165,10 +296,43 @@ repository contains no personal data and no unpublished work.
   above name four more call sites than the task's own framing listed
   (`pairwise.jl`, `blended_cg.jl`, and two generic drivers); only BPCG was
   run end to end. Worth a second harness pass if this becomes a live PR.
+  This now also scopes the deletion-rate finding below: the 2/1/0
+  deletions counted are BPCG's, at `lazy=true` and `epsilon=1e-9`, not a
+  general property of these problems under every algorithm or tolerance.
 - **README.fr.md** was updated for the new headline and answer, but the
   fuller "Prefix hashing" section that carries the crossover table and the
-  collision-rate explanation was not translated; a native read is still
-  worth doing before anything with this repository's URL in it goes out.
+  collision-rate explanation was not translated before this branch, and
+  the new "Lookup is not the whole cost" section (idea 1, idea 2, the
+  deletion-rate finding, the total-per-iteration table) was not translated
+  either; a native read is still worth doing before anything with this
+  repository's URL in it goes out.
 - **The CI workflow was written, not observed green.** No GitHub run of
-  `.github/workflows/ci.yml` has happened yet; it should be watched once
-  pushed, per this repository's own no-push rule.
+  `.github/workflows/ci.yml` has happened yet, now including the two new
+  steps this branch added (the lifecycle sweep, `test_soundness.jl`'s
+  assertions); it should be watched once pushed, per this repository's own
+  no-push rule.
+- **The trie's depth was capped at 4 for Birkhoff n=60, and it was not
+  pushed further.** 28.8% of atoms still share a leaf at the best swept
+  config (`microbenchmark/results_lifecycle_collisions.csv`); depth 8 or
+  higher might fully resolve it eventually, since two distinct permutation
+  matrices must disagree somewhere in their flattened form, but idea 1
+  already resolves the same case in one level at far lower cost, so this
+  was never tried. If a future polytope needs the trie specifically
+  (idea 1's sparse-structure trick does not generalize to it), how deep is
+  actually needed there is still open.
+- **The trie's tie-break (prefer shallower `max_depth` over smaller `k`
+  when collision rate ties) was a design choice, not something checked
+  against its reverse.** A `k=8, max_depth=2` config was never compared
+  head to head against the `k=16, max_depth=1` configs the sweep actually
+  picked, at equal collision rate, to confirm shallower really is cheaper
+  in this codebase's Dict-of-Dict implementation.
+- **Repair is O(size) by construction, and no cheaper alternative was
+  built or measured.** Every repair function here re-walks the whole
+  index on every `deleteat!`; an indirection layer (a stable atom identity
+  mapped to a mutable current-position cell, shared between the index and
+  a parallel positions array) could in principle make repair proportional
+  to how many entries actually moved rather than to the whole index's
+  size, at the cost of an extra pointer per stored atom on every insert.
+  Whether that trade is worth it depends on a deletion rate this
+  repository's own measurement found to be near zero for BPCG, so it was
+  not built.
