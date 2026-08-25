@@ -8,11 +8,13 @@ on:
 
 jobs:
   measure:
-    name: Run both scripts end to end
+    name: Run all three scripts end to end
     runs-on: ubuntu-latest
     # First run precompiles FrankWolfe.jl's own dependency tree (it pulls in
     # MathOptInterface, StaticArrays and more), which took about a minute
-    # locally; the runs themselves are seconds. 20 covers a cold cache.
+    # locally; measurement/run.jl and microbenchmark/run.jl themselves are
+    # seconds, run_prefix.jl's full sweep took about two minutes locally
+    # (see MEASURING.md). 20 covers a cold cache and a slower shared runner.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +47,21 @@ jobs:
           test -s microbenchmark/results.csv
           head -1 microbenchmark/results.csv | grep -q "scan_miss_ns"
 
+      # Not a timing check either, for the same reason as the two steps
+      # above: this confirms the prefix-hashing sweep still runs end to end
+      # against whatever FrankWolfe.jl version Project.toml resolves to,
+      # and that all three results_prefix_*.csv files still have the
+      # columns README.md's "Prefix hashing" section describes.
+      - name: The prefix-hashing sweep runs end to end
+        run: |
+          julia --project=. microbenchmark/run_prefix.jl
+          test -s microbenchmark/results_prefix_timing.csv
+          test -s microbenchmark/results_prefix_collisions.csv
+          test -s microbenchmark/results_prefix_crossover.csv
+          head -1 microbenchmark/results_prefix_timing.csv | grep -q "querytype"
+          head -1 microbenchmark/results_prefix_collisions.csv | grep -q "bucket_collision_rate"
+          head -1 microbenchmark/results_prefix_crossover.csv | grep -q "crossover_size"
+
       # The one thing this repository asserts rather than just runs: that
       # the instrumented find_atom (instrumentation.jl) and the scan
       # find_atom actually is (active_set.jl in the resolved FrankWolfe.jl)
@@ -59,5 +76,6 @@ jobs:
             @assert FrankWolfe.find_atom(as, [3.0, 4.0]) == 2
             @assert FrankWolfe.find_atom(as, [9.0, 9.0]) == -1
             @assert lookup_calls() == 2
+            @assert lookup_hits() == 1
             println("instrumentation.jl: correctness checks passed")
           '
