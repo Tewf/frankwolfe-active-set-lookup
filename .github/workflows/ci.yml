@@ -15,8 +15,11 @@ jobs:
     # locally; measurement/run.jl and microbenchmark/run.jl themselves are
     # seconds, run_prefix.jl's full sweep took about two minutes locally,
     # run_lifecycle.jl's sweep-and-time about 30 seconds, run_pattern_key_reps.jl's
-    # about 20 seconds (see MEASURING.md). 20 covers a cold cache and a
-    # slower shared runner.
+    # about 20 seconds (see MEASURING.md). confirm-and-sustain's four
+    # correctness tests add about 20 seconds total (test_fold_quality.jl,
+    # at ~13s, is the only one of the four that isn't sub-second: it
+    # generates 40,000 real Birkhoff atoms across five trials). 20 covers a
+    # cold cache and a slower shared runner.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -129,3 +132,39 @@ jobs:
           head -1 microbenchmark/results_pattern_key_reps_allocations.csv | grep -q "lookup_allocs"
           head -1 microbenchmark/results_pattern_key_reps_collisions.csv | grep -q "atom_collision_rate"
           head -1 microbenchmark/results_pattern_key_reps_total.csv | grep -q "total_bytes_per_iter"
+
+      # confirm-and-sustain's own four correctness tests, TESTING.md
+      # documents what each one protects and what none of them cover yet.
+      # All four are real pass/fail checks, like the two @test steps
+      # above: every failure here means the folded pattern key actually
+      # disagreed with the scan, not that a script merely crashed.
+
+      # The one invariant that matters, checked as a property rather than
+      # examples: for any atom set and any query, the structure returns
+      # exactly what the linear scan returns. Seeds x sizes (0-500) x k
+      # (2/4/8/16) x all three alphabets, plus a dedicated duplicates
+      # testset.
+      - name: The structure-vs-scan equivalence property tests pass
+        run: julia --project=. microbenchmark/test_equivalence.jl
+
+      # Nobody tested `active_set_cleanup!`'s `deleteat!` shifting every
+      # later index down by one before this branch. Randomised
+      # insert/delete sequences, checked against a fresh scan after every
+      # single operation, so a later "optimisation" to the repair logic
+      # that breaks index validity fails here, not silently.
+      - name: The insert/delete lifecycle tests pass
+        run: julia --project=. microbenchmark/test_lifecycle.jl
+
+      # Sparse atoms must route to the folded pattern key and dense atoms
+      # to the value-prefix hash, the same dispatch shape `_unsafe_equal`
+      # itself already has (one method on `Array`, one on
+      # `AbstractSparseArray`), and both must still agree with the scan.
+      - name: The sparse/dense dispatch tests pass
+        run: julia --project=. microbenchmark/test_dispatch.jl
+
+      # The comparison Mohamed asked for: whether the hand-written
+      # incremental fold clusters, measured at narrowed bit widths against
+      # both Julia's own `hash` and the birthday prediction. Prints the
+      # comparison table either way; only fails if the fold is clustering.
+      - name: The fold-quality-vs-birthday tests pass
+        run: julia --project=. microbenchmark/test_fold_quality.jl
