@@ -14,10 +14,18 @@ module LookupInstrumentation
 using FrankWolfe
 using TimerOutputs
 
-export TIMER, reset_instrumentation!, lookup_calls, lookup_share_of, active_set_sizes!
+export TIMER,
+    reset_instrumentation!, lookup_calls, lookup_hits, lookup_share_of, active_set_sizes!
 
 const TIMER = TimerOutput()
 const CALLS = Ref(0)
+# HITS counts calls where the atom was already in the active set (idx != -1):
+# a re-encountered vertex, which forces `_unsafe_equal` to run to completion
+# rather than exit early. CALLS - HITS is the miss count. Added to answer
+# "how often is find_atom's answer actually a hit", which the original
+# instrumentation never recorded and microbenchmark/'s prefix-hash sweep
+# needs as its "realistic mix" ratio.
+const HITS = Ref(0)
 
 function FrankWolfe.find_atom(active_set::FrankWolfe.ActiveSet, atom)
     CALLS[] += 1
@@ -30,16 +38,21 @@ function FrankWolfe.find_atom(active_set::FrankWolfe.ActiveSet, atom)
             end
         end
     end
+    if idx != -1
+        HITS[] += 1
+    end
     return idx
 end
 
 function reset_instrumentation!()
     CALLS[] = 0
+    HITS[] = 0
     reset_timer!(TIMER)
     return nothing
 end
 
 lookup_calls() = CALLS[]
+lookup_hits() = HITS[]
 
 """
     lookup_share_of(total_section)
