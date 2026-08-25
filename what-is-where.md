@@ -28,7 +28,7 @@ explain/                    gitignored; HTML explainers for one reader, never sh
 Two directories, one house style: `measurement/` asks whether the lookup
 costs anything in a real run; `microbenchmark/` asks how much the lookup
 itself would cost either way, with no solver around it to hide the answer
-in. Neither file runs the other — `measurement/run.jl` needs
+in. Neither file runs the other (`measurement/run.jl` needs
 `instrumentation.jl` and `problems.jl` only, `microbenchmark/run.jl` needs
-`lookup_methods.jl` and `timing.jl` only — so either can be read, or rerun,
+`lookup_methods.jl` and `timing.jl` only), so either can be read, or rerun,
 on its own.

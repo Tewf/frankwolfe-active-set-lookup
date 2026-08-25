@@ -5,13 +5,13 @@
 
 > [Read in English](README.md)
 
-**Non — pour les problèmes et tailles d'ensemble actif mesurés ici, hacher
+**Non : pour les problèmes et tailles d'ensemble actif mesurés ici, hacher
 l'ensemble actif de `FrankWolfe.jl` n'apporterait pas d'avantage mesurable.**
 Le balayage linéaire de `find_atom` a pris moins de **0,15 % du temps
 d'exécution** sur trois exécutions réelles de blended pairwise conditional
 gradient (BPCG), ensembles actifs jusqu'à 389 atomes. Un micro-benchmark
 isolé montre pourquoi : hacher un atome coûte toujours O(dimension), tandis
-que le `!=` du balayage s'arrête dès la première coordonnée différente —
+que le `!=` du balayage s'arrête dès la première coordonnée différente,
 en général la première ou la deuxième pour des atomes indépendants. Un
 `Dict` ne l'emporte qu'une fois l'ensemble actif, ou la ressemblance des
 atomes, assez grand pour combler cet écart ; ni l'un ni l'autre ici.
@@ -27,8 +27,8 @@ ou plus généralement un hachage des atomes de l'ensemble actif, aiderait-il ?
 étape « ajout » de BPCG (`blended_pairwise.jl:374`, `nothing` explicite) et
 à chaque étape pairwise du PFW simple (`pairwise.jl:242`), mais jamais dans
 l'away-step FW (`afw.jl`), qui suit toujours son propre indice.
-`_unsafe_equal` (ligne 499/513) est **exacte** — `!=` par coordonnée pour un
-`Array`, `==` pour un tableau creux — ce qui rend un hachage valide : aucune
+`_unsafe_equal` (ligne 499/513) est **exacte** (`!=` par coordonnée pour un
+`Array`, `==` pour un tableau creux), ce qui rend un hachage valide : aucune
 tolérance n'est sacrifiée.
 
 ## Ce qui a été mesuré
@@ -45,7 +45,7 @@ sur le type `ActiveSet` (`measurement/instrumentation.jl`) :
 
 `microbenchmark/` isole la recherche : balayage linéaire contre `Dict`, sur
 des tailles de 1 à 20 000 et des dimensions de 16 à 8 192, selon deux
-scénarios — **générique** (coordonnées indépendantes, le `!=` s'arrête
+scénarios : **générique** (coordonnées indépendantes, le `!=` s'arrête
 presque aussitôt) et **adversarial** (atomes partageant un même préfixe,
 ne différant qu'en dernière coordonnée, forçant chaque comparaison à
 parcourir tout le préfixe). Le point de croisement (`Dict` gagnant) :
@@ -55,23 +55,23 @@ parcourir tout le préfixe). Le point de croisement (`Dict` gagnant) :
 | 16 | 50 | 5 |
 | 128 | 500 | 5 |
 | 1 024 | 2 000 | 5 |
-| 8 192 | entre 6 500 et 10 000 (bruité — voir `MEASURING.md`) | 10 |
+| 8 192 | entre 6 500 et 10 000 (bruité, voir `MEASURING.md`) | 10 |
 
 Les deux scripts écrivent leur tableau dans un `results.csv` versionné, à
 côté d'eux (`what-is-where.md`).
 
 ## La réponse
 
-Les trois exécutions réelles restent loin d'un croisement générique — le
+Les trois exécutions réelles restent loin d'un croisement générique, le
 plus grand ensemble actif observé (389) reste sous le seuil de la dimension
-128 (500) — et les sommets de `FrankWolfe.jl` (permutations creuses, coins
+128 (500), et les sommets de `FrankWolfe.jl` (permutations creuses, coins
 de boîte denses) se comportent plus comme le cas générique que
 l'adversarial, d'où une part toujours sous 0,15 %. **Un `Dict` ne se
 rentabiliserait que si l'ensemble actif dépassait quelques centaines à
 plusieurs milliers d'atomes, ou si la géométrie rendait les sommets
 anormalement faciles à confondre.** Rien de tel ici, sur les polytopes
-mesurés — pas une affirmation sur tout polytope possible. `DECISIONS.md`
-contient le commentaire prêt à poster et la question ouverte.
+mesurés ; ce n'est pas une affirmation sur tout polytope possible.
+`DECISIONS.md` contient le commentaire prêt à poster et la question ouverte.
 
 ## Pour aller plus loin
 

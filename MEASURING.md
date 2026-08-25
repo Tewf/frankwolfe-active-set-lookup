@@ -16,8 +16,8 @@ tensor-rank-toolkit's "one core, otherwise quiet" protocol was practical to
 reproduce here without stopping work the other agents were mid-way through.
 This is the disclosed exception `tensor-rank-toolkit/MEASURING.md` asks for
 in place of a silent one: **the numbers here carry more noise than a single
-quiet core would give**, and the one place that noise visibly shows —
-whether the microbenchmark's dim=8192 crossover falls at 6,500 or 10,000 —
+quiet core would give**, and the one place that noise visibly shows
+(whether the microbenchmark's dim=8192 crossover falls at 6,500 or 10,000)
 is called out in `README.md` rather than smoothed over.
 
 ## Fastest of five, not the mean
@@ -42,7 +42,7 @@ per point.
 ## What the harness timer actually measures
 
 `measurement/instrumentation.jl` adds a method for `find_atom` on
-`FrankWolfe.jl`'s own `ActiveSet` type — more specific than the package's
+`FrankWolfe.jl`'s own `ActiveSet` type, more specific than the package's
 method on the abstract `AbstractActiveSet`, so Julia's dispatch picks it for
 every run in this repository, and every other active-set type ships
 untouched. **`TimerOutputs.jl` was chosen over `Profile`** because the
@@ -51,13 +51,13 @@ manually-placed `@timeit` answers directly and cheaply (nanoseconds of
 overhead per call); a sampling profiler would need a much longer run to
 resolve a call this fast and answers a different question ("where does time
 go", not "how much of it"). The instrumentation reproduces `find_atom`'s
-published loop line for line — verified against
+published loop line for line (verified against
 `~/.julia/packages/FrankWolfe/*/src/active_set.jl` at the version pinned in
-`Manifest.toml` — so timing it does not change what it does.
+`Manifest.toml`), so timing it does not change what it does.
 
 ## Warm-up, always
 
-Every measured run — harness and microbenchmark alike — is preceded by an
+Every measured run, harness and microbenchmark alike, is preceded by an
 identical, discarded call so JIT compilation lands outside the timed region.
 `measurement/run.jl` runs each problem at a small iteration budget first;
 `microbenchmark/timing.jl` runs the timed function once before its first
