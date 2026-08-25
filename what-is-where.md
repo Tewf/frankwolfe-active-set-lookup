@@ -46,6 +46,23 @@ microbenchmark/              the lookup itself, isolated from any solver
                                   (immune by construction) and the trie key (closed the
                                   same way); the one file in this repository whose
                                   failure means something is actually wrong, not noisy
+  pattern_key_reps.jl             two allocation-free representations of the same
+                                   pattern key (UInt64 incremental hash, NTuple{K,Int})
+  run_pattern_key_reps.jl          sweeps k x representation, measures allocation
+                                    (@allocated/@allocations) and time for lookup,
+                                    insert and deletion-repair, writes the four
+                                    results files below
+  results_pattern_key_reps_timing.csv       lookup/insert/delete-repair ns per representation
+  results_pattern_key_reps_allocations.csv   bytes and allocation count per representation
+  results_pattern_key_reps_collisions.csv     bucket collision stats per representation
+  results_pattern_key_reps_total.csv           weighted by each real run's own call rate,
+                                                into one total ns and one total bytes per
+                                                iteration
+  test_pattern_key_reps.jl        @test: forces a real UInt64 fold collision (two
+                                   different real patterns, narrowed to 1 bit) and checks
+                                   the structure still answers correctly; confirms the
+                                   NTuple key has no equivalent hazard; cross-checks all
+                                   three representations agree with each other
 README.md                  the question, the numbers, the answer; leads with the answer
 README.fr.md                the same, in French, updated for the new answer; the
                              "Prefix hashing" section's detail was not translated,
@@ -70,9 +87,12 @@ in. None of the scripts needs another script's own *code*
 plus whichever of `sparse_pattern.jl`/`hash_trie.jl`/`bucket_lifecycle.jl`
 they use, plus the `FrankWolfe` package itself to generate atoms in the
 exact shape `measurement/problems.jl` uses, never any of `measurement/`'s
-own modules), so any script can be read, or rerun, on its own. One
-disclosed exception, data rather than code: `run_lifecycle.jl`'s final
-step reads `measurement/results.csv` as plain CSV, to weight its own
+own modules; `run_pattern_key_reps.jl` needs `lookup_methods.jl`,
+`sparse_pattern.jl`, `pattern_key_reps.jl`, `bucket_lifecycle.jl` and
+`timing.jl`, the same shape one level further), so any script can be
+read, or rerun, on its own. One disclosed exception, data rather than
+code: `run_lifecycle.jl`'s and `run_pattern_key_reps.jl`'s final steps
+each read `measurement/results.csv` as plain CSV, to weight their own
 measured lookup/insert/repair costs by the real per-iteration call rates
 that file records, rather than reimplementing a second BPCG harness to
 get the same numbers.

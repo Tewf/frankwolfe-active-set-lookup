@@ -14,8 +14,9 @@ jobs:
     # MathOptInterface, StaticArrays and more), which took about a minute
     # locally; measurement/run.jl and microbenchmark/run.jl themselves are
     # seconds, run_prefix.jl's full sweep took about two minutes locally,
-    # run_lifecycle.jl's sweep-and-time about 30 seconds (see MEASURING.md).
-    # 20 covers a cold cache and a slower shared runner.
+    # run_lifecycle.jl's sweep-and-time about 30 seconds, run_pattern_key_reps.jl's
+    # about 20 seconds (see MEASURING.md). 20 covers a cold cache and a
+    # slower shared runner.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -103,3 +104,28 @@ jobs:
           head -1 microbenchmark/results_lifecycle_timing.csv | grep -q "delete_repair_ns"
           head -1 microbenchmark/results_lifecycle_total.csv | grep -q "total_ns_per_iter"
           head -1 microbenchmark/results_sparse_pattern_collisions.csv | grep -q "n_buckets"
+
+      # A real pass/fail check, not a "still runs" one, same reason as the
+      # signed-zero step above: every @test in test_pattern_key_reps.jl
+      # throws on failure, and this is the one CI step that would actually
+      # catch a UInt64-fold or NTuple regression on the collision-safety
+      # property, not just a crash.
+      - name: The pattern-key representation collision-safety tests pass
+        run: julia --project=. microbenchmark/test_pattern_key_reps.jl
+
+      # Not a timing check, for the same reason as the other sweeps above:
+      # confirms the three-representation allocation-and-time sweep still
+      # runs end to end and that its four results_pattern_key_reps_*.csv
+      # files still have the columns README.md's "Idea 1, tightened"
+      # section describes.
+      - name: The pattern-key representation sweep runs end to end
+        run: |
+          julia --project=. microbenchmark/run_pattern_key_reps.jl
+          test -s microbenchmark/results_pattern_key_reps_timing.csv
+          test -s microbenchmark/results_pattern_key_reps_allocations.csv
+          test -s microbenchmark/results_pattern_key_reps_collisions.csv
+          test -s microbenchmark/results_pattern_key_reps_total.csv
+          head -1 microbenchmark/results_pattern_key_reps_timing.csv | grep -q "delete_repair_ns"
+          head -1 microbenchmark/results_pattern_key_reps_allocations.csv | grep -q "lookup_allocs"
+          head -1 microbenchmark/results_pattern_key_reps_collisions.csv | grep -q "atom_collision_rate"
+          head -1 microbenchmark/results_pattern_key_reps_total.csv | grep -q "total_bytes_per_iter"

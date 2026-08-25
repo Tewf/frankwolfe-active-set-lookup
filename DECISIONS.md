@@ -125,6 +125,137 @@ separation of concerns, the way `lookup_methods.jl` already keeps its scan,
 full-`Dict`, and prefix-hash lookups (plus their sparse-atom variants) in
 one file. Flagging it here rather than silently letting it stand.
 
+## pattern-key-integer-hash: what changed, and what is still a judgement call
+
+Mohamed's brief this time pointed at the sparse-pattern key's own weak
+spot: it is a `Vector{Int}`, so every lookup and every insert allocates
+one before the `Dict` is even touched. `microbenchmark/pattern_key_reps.jl`
+built two allocation-free representations of the identical key (`UInt64`,
+`NTuple{K,Int}`); `microbenchmark/run_pattern_key_reps.jl` measured all
+three the same way `run_lifecycle.jl` measured Idea 1 against the flat
+prefix hash. This section is the reasoning and the caveats behind the
+numbers README.md's "Idea 1, tightened" reports; treat it as the audit
+trail, not a restatement.
+
+**The fold pays off, cleanly, and this is not a marginal call.** Zero
+bytes and zero allocations per lookup for both new representations, at
+every k swept, at both real Birkhoff sizes, against the `Vector{Int}`
+key's 80-128 bytes and 2 allocations (scaling with k, since the key
+itself is what is being allocated). Lookup and insert time both improved
+too, not just allocation count: at k=8, `UInt64` and `NTuple{8,Int}` beat
+`Vector{Int}` by roughly 1.6-2x on total per-iteration cost at both real
+sizes (1.57-1.62x for `UInt64`/`NTuple` at n=60, 1.81-2.00x at n=25;
+README.md's table), and the win gets larger once k is also
+lowered, since neither new representation's lookup allocation depends on
+k at all. **Recommend `UInt64` over `NTuple{k,Int}` for the actual
+proposal**, not because it measured consistently faster (at k=8, `NTuple`
+wins insert by 21.3%/6.7% at n=25/n=60 and lookup by 1.6% at n=25, but
+loses lookup by 1.5% at n=60, so it is not a clean sweep) but because
+`UInt64` takes `k` as an ordinary `Int`, the same as `Vector{Int}` does
+today, while
+`NTuple{K,Int}` needs `k` fixed as a compile-time type parameter
+(`Val(k)`) to actually be allocation-free; a real `ActiveSet` where `k`
+might reasonably be a per-call or per-LMO tunable, not a value baked into
+a type across a whole codebase, is a better fit for the representation
+that does not ask for that. This is a judgement call about API shape, not
+a correctness or performance one: if a maintainer is comfortable fixing
+`k` as a `Val`, `NTuple{k,Int}` is a legitimate, slightly faster
+alternative, and this repository would not object to it being chosen
+instead.
+
+**The `UInt64` fold's collision hazard is real, not hypothetical, and
+survivable, not by luck.** `test_pattern_key_reps.jl`'s first testset
+forces one, on two real Birkhoff atoms whose actual `k=2` patterns are
+verifiably different, by narrowing the fold to 1 bit (`bits=1`, a
+test-only keyword on the shipped `pattern_key_uint64`, not a separate
+reimplementation), and checks the resulting index puts both atoms in one
+bucket and still answers every query correctly, because every candidate
+is confirmed against the whole atom before being trusted. At the fold's
+real, unnarrowed default, this same pair does not collide; no attempt was
+made to find a real 64-bit collision among actual Birkhoff atoms at the
+sizes and k values this repository measured (158-389 atoms, k in
+{2,4,8}), because the birthday bound on a 64-bit space makes that
+astronomically unlikely to find by search, and the test does not need one
+to demonstrate the property that matters: that the structure survives a
+collision when one occurs, not that one never will. **The `NTuple{K,Int}`
+representation has no equivalent hazard, and the code says so** (both
+`pattern_key_reps.jl`'s header and inline comments, and this file's
+"Recommend `UInt64`..." paragraph above), which is itself part of why
+`UInt64` was chosen as the primary recommendation despite carrying a
+hazard `NTuple` does not: the hazard is closed by an argument
+(confirm-before-trust) this repository already relies on for every other
+hashed structure here, not by hoping it doesn't come up.
+
+**Two measurement pitfalls were found and fixed while building this,
+worth recording because a careless version of this same file would have
+reported them as properties of the representations being measured, not
+of the harness measuring them:**
+
+1. A closure stored in a struct field typed `::Function` loses its
+   concrete type there, so calling it through that field forces a dynamic
+   dispatch on every call, which allocates. An early version of
+   `run_pattern_key_reps.jl` used a `struct Representation; lookup::Function;
+   ...; end` to avoid repeating four near-identical measurement blocks;
+   `pattern_lookup_u64` measured 0 bytes called directly and 80 bytes
+   called through that field, with nothing about the lookup itself
+   different between the two calls. The fix was to pass each
+   representation's closures as plain arguments into a `where {L,...}`
+   -bound function instead of storing them in a field, which keeps
+   Julia's specialization intact end to end.
+2. `@allocated f(make_args()...)` counts `make_args()`'s own allocation
+   together with `f`'s. Measuring insert/delete-repair allocation needs a
+   *fresh* copy of the bucket `Dict` per call (so a mutating function
+   never corrupts state a later measurement needs), and building that
+   copy inside the same expression `@allocated` times charges the copy's
+   cost to the call it was only there to protect: an early version of
+   this file reported ~5,700-13,600 bytes for a single `bucket_insert!`
+   call, when the real number (confirmed once the copy was moved outside
+   the timed expression) is 64 bytes. `run_pattern_key_reps.jl`'s
+   `mutating_alloc_bytes_and_count` now builds the fresh copy as its own
+   statement, before the `@allocated`/`@allocations` expression starts.
+
+Both are recorded in `run_pattern_key_reps.jl`'s own header comment too,
+next to the code that fixes them; repeated here because a mistake this
+easy to make silently, in a file whose entire point is reporting
+allocation numbers accurately, seemed worth a second, more visible
+record.
+
+**A reproducible timing anomaly was found, not smoothed over.**
+`NTuple{4,Int}`'s marginal insert time (the same build-at-N-vs-N+100
+differencing `run_lifecycle.jl` already uses) measured 135.57 ns at n=60
+and 177.65 ns at n=25, against 19-38 ns at k=2 and k=8 for the same two
+alphabets. Both figures held at the same magnitude across two independent
+full runs of `run_pattern_key_reps.jl` (177.65 ns for n=25 both times,
+identically, since `Random.seed!(4)` regenerates the exact same atom
+sequence each run), which rules out ordinary timer noise; the leading
+hypothesis, not confirmed, is a Julia `Dict`
+resize boundary landing inside the differenced atom-count range
+specifically for `NTuple{4,Int}`'s 32-byte key width and not for
+`NTuple{2,Int}`'s 16 or `NTuple{8,Int}`'s 64. This was not chased further
+(would need inspecting `Dict`'s internal table size across the exact
+insert sequence, not just timing it), so README.md's k-sweep table marks
+that one figure rather than either hiding it or repeating a wrong
+conclusion the way trusting it uncritically would.
+
+**A file-length judgement call, same shape as `hash_trie.jl`'s above:**
+`microbenchmark/run_pattern_key_reps.jl` is around 320 lines total (about
+144 non-comment, non-blank lines), the longest file this branch adds,
+past the ~80-logical-line trigger. Its role, "sweep all three pattern-key
+representations plus the dense value-prefix baseline for time,
+allocation, and collision rate, at every k, then combine with the real
+call rates into a total," was judged to need the "and" the same way
+`run_lifecycle.jl`'s own, even longer equivalent (213 non-comment lines,
+not flagged when that branch added it) already does: one script running
+one coherent sweep end to end, where splitting the collision sweep, the
+timing sweep, and the final rate-weighted combination into separate files
+would mean either re-building every index three times (once per file) or
+threading a lot of intermediate state across a file boundary for no real
+separation of concerns. Flagging it here for the same reason
+`hash_trie.jl`'s entry above does, and noting the inconsistency: this
+branch does not know why `run_lifecycle.jl` itself was not flagged when
+it was added, only that the same reasoning that exempted it applies here
+too.
+
 ## The draft comment for issue #244
 
 **Posting this is Mohamed's to do, not automated, not implied by anything
@@ -235,6 +366,38 @@ DECISIONS.md`), not repeated here.
 > prefix otherwise), which argues even harder for something the caller
 > chooses rather than a fixed default.
 >
+> Fourth, and this is a refinement of the sparse-pattern key itself, not a
+> new idea: that key is a `Vector{Int}`, so every lookup and every insert
+> allocates one before the `Dict` is even touched. I built two more
+> representations of the identical key (same `rowval[1:k]`, just stored
+> differently): a `UInt64` folded with an incremental hash, and an
+> `NTuple{k,Int}`, Julia's fixed-length tuple, stored inline rather than on
+> the heap. Both eliminate the allocation entirely: 0 bytes and 0
+> allocations per lookup, at every k I tried, against the `Vector{Int}`
+> key's 80-128 bytes and 2 allocations (scaling with k). Lookup and insert
+> got faster too, not just allocation-free: at k=8, both new
+> representations beat `Vector{Int}` by roughly 1.6-2x on total
+> per-iteration cost at both real Birkhoff sizes, and lowering k further
+> (which no longer costs anything on the allocation side) widens that to
+> roughly 2x. I'd propose the `UInt64` fold specifically, not the tuple,
+> even though the tuple usually measured a little faster (it is not a
+> clean sweep: 21.3%/6.7% faster on insert at n=25/n=60, 1.6% faster on
+> lookup at n=25, but 1.5% *slower* on lookup at n=60): the tuple needs
+> `k` fixed as a compile-time type parameter to actually stay
+> allocation-free, while the `UInt64` fold takes `k` as an ordinary `Int`,
+> the same as today's key does, which matters more than a few percent if
+> `k` should stay something a caller picks per polytope rather than bakes
+> into a type. The fold does introduce a real hazard the `Vector{Int}` key
+> doesn't have: two *different* patterns can now fold to the same
+> `UInt64`, a genuine hash collision, not just a prefix tie. I forced one
+> in a test (two real Birkhoff atoms with verifiably different patterns,
+> narrowed to a 1-bit fold) and confirmed the structure still answers
+> every query correctly, because the bucket holds a list of candidates,
+> confirmed against the whole atom, exactly the same argument that already
+> makes the flat prefix hash and the sparse-pattern key sound. The tuple
+> representation has no such hazard at all, by construction, if that
+> simplicity is worth the API cost to you.
+>
 > One caveat that belongs with the idea rather than after it. The confirmation
 > step makes bucket collisions harmless, but there is a false-negative case it
 > cannot reach: `_unsafe_equal` compares with `!=` and so follows `==`
@@ -299,12 +462,19 @@ repository contains no personal data and no unpublished work.
   This now also scopes the deletion-rate finding below: the 2/1/0
   deletions counted are BPCG's, at `lazy=true` and `epsilon=1e-9`, not a
   general property of these problems under every algorithm or tolerance.
-- **README.fr.md** was updated for the new headline and answer, but the
-  fuller "Prefix hashing" section that carries the crossover table and the
-  collision-rate explanation was not translated before this branch, and
-  the new "Lookup is not the whole cost" section (idea 1, idea 2, the
-  deletion-rate finding, the total-per-iteration table) was not translated
-  either; a native read is still worth doing before anything with this
+- **README.fr.md is now behind by two branches' worth of answer, not
+  one.** It still carries `sparse-key-and-trie`'s predecessor's headline
+  (the plain `k=8` prefix-hash answer), never updated for
+  `sparse-key-and-trie`'s own "lifecycle costed" headline, let alone this
+  branch's further refinement; nor is the fuller "Prefix hashing" section
+  that carries the crossover table and the collision-rate explanation
+  translated, nor `sparse-key-and-trie`'s "Lookup is not the whole cost"
+  section (idea 1, idea 2, the deletion-rate finding, the
+  total-per-iteration table), nor this branch's "Idea 1, tightened"
+  section. This branch did not attempt to close that gap, since it is
+  pre-existing debt from a prior branch, not something `pattern-key-integer-hash`
+  introduced; a native read and a full resync is worth doing before
+  anything with this
   repository's URL in it goes out.
 - **The CI workflow was written, not observed green.** No GitHub run of
   `.github/workflows/ci.yml` has happened yet, now including the two new
@@ -336,3 +506,43 @@ repository contains no personal data and no unpublished work.
   Whether that trade is worth it depends on a deletion rate this
   repository's own measurement found to be near zero for BPCG, so it was
   not built.
+- **`NTuple{4,Int}`'s marginal insert-time anomaly was observed, not
+  explained.** 135-178 ns at `k=4`, reproducible across two independent
+  runs, against 19-38 ns at `k=2` and `k=8` for the same alphabet and
+  size; the leading hypothesis (a `Dict` resize boundary landing inside
+  the differenced size range specifically at `NTuple{4,Int}`'s 32-byte key
+  width) was not checked against `Dict`'s actual internal table size
+  across the insert sequence, only guessed from the shape of the numbers.
+  If `NTuple{k,Int}` is ever proposed at `k=4` specifically, this should
+  be resolved first, since it currently makes that one config look worse
+  than it may actually be.
+- **Delete-repair showed no consistent winner among the three pattern-key
+  representations**, and no attempt was made to explain the specific
+  numbers beyond the structural argument that `bucket_delete_repair!`
+  never touches a key at all, only stored position values
+  (`bucket_lifecycle.jl`), so key type has no principled reason to move
+  this cost. `Vector{Int}` won at n=60 against both new representations;
+  `UInt64` won at n=25 but lost at n=60; `NTuple{8,Int}` lost at both.
+  Whether this is genuinely representation-independent noise (Dict
+  iteration order, which can depend on a key's hash) or a real, smaller
+  effect this repository's noise floor (`MEASURING.md`) is too coarse to
+  resolve was not determined either way.
+- **Whether `UInt64` fold collisions are actually reachable at the sizes
+  and `k` values this repository cares about was not searched for.** The
+  collision test forces one with a narrowed `bits` keyword rather than
+  finding a naturally-occurring one, because the birthday bound on a
+  64-bit space makes an exhaustive or random search over 158-389 atoms at
+  `k` in {2,4,8} astronomically unlikely to find one. That is an argument
+  from probability, not a search that came back empty; if a future
+  polytope's atom alphabet is large enough (many thousands of active
+  atoms, or a much larger `k`) that the birthday bound stops being
+  reassuring, this repository has not measured where that boundary is.
+- **Whether `Val(k)`-based dispatch could be made ergonomic enough for
+  `FrankWolfe.jl` to actually adopt the `NTuple{k,Int}` representation was
+  not explored.** The measurement code threads a precomputed `Val(k)`
+  through by hand at each sweep point; a real integration would need `k`
+  fixed once per `ActiveSet` construction (plausible, since an active
+  set's atom shape does not change mid-run) or accept the representation
+  is only viable where that is true. Neither this repository's own
+  `PatternIndexTuple{K}` nor its measurement harness tried threading `k`
+  through anything resembling `FrankWolfe.jl`'s actual `ActiveSet` type.

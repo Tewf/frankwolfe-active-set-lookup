@@ -28,6 +28,25 @@ alphabet, and **never won outright at any of the three real active-set
 sizes**; at Birkhoff n=25's own size it was measurably worse than doing
 nothing. See "Lookup is not the whole cost" below for the numbers.
 
+**The sparse-pattern key itself still allocates, and removing that
+allocation makes the win bigger.** It is a `Vector{Int}`, so every lookup
+and every insert builds one on the heap first; `microbenchmark/pattern_key_reps.jl`
+adds two allocation-free representations of the identical key, a `UInt64`
+folded with an incremental hash and an `NTuple{k,Int}`. **Propose the
+`UInt64` fold at `k=4`: 0 bytes and 0 allocations per lookup, against the
+`Vector{Int}` key's 128 bytes and 2 allocations at `k=8`, and a total
+per-iteration cost of 1.11ns at Birkhoff n=25's 158-atom maximum and
+0.81ns at n=60's 389-atom maximum, down from Idea 1's already-winning
+2.56ns and 1.84ns (this branch's own re-measurement of the `Vector{Int}`
+key at `k=8`, close to but not identical to the earlier 2.72ns/1.88ns,
+ordinary run-to-run noise per `MEASURING.md`, not a regression).** The
+`NTuple{k,Int}` key is just as allocation-free and usually a little
+faster still, but needs `k` fixed as a compile-time type parameter rather
+than an ordinary argument, a real API cost the `UInt64` fold does not
+have; see "Idea 1, tightened" below for both representations' numbers
+side by side and the collision hazard the `UInt64` fold introduces (and
+survives).
+
 ## The question
 
 [`ZIB-IOL/FrankWolfe.jl#244`](https://github.com/ZIB-IOL/FrankWolfe.jl/issues/244),
@@ -264,6 +283,185 @@ only the entries that actually moved. It just never gets charged more than
 not change the ranking above; `DECISIONS.md` carries the
 open question of whether a smarter, indirection-based repair could close that
 gap for a workload where deletion is not this rare.
+
+### Idea 1, tightened: three representations of the pattern key
+
+The sparse-pattern key above (`pattern_key(atom, k) = atom.rowval[1:k]`) already
+won. It is also a `Vector{Int}`, so building it, on every lookup and every
+insert, allocates: `microbenchmark/pattern_key_reps.jl` builds two more
+representations of the exact same key, chosen to remove that allocation
+rather than to change what gets keyed:
+
+- **`UInt64`**: the k row indices folded into one integer with an
+  incremental hash (`h = hash(rowval[i], h)`, chained). Nothing is
+  allocated building it; the trade is that the fold is lossy, so two
+  *different* patterns can now land in the same `Dict` bucket, a real
+  hash collision, not merely a prefix tie the way two atoms sharing a
+  `Vector{Int}` key already could.
+- **`NTuple{k,Int}`**: Julia's fixed-length tuple, stored inline in the
+  `Dict`'s own key array rather than as a separate heap object, so this
+  is also allocation-free. Unlike the `UInt64` fold, this has no
+  collision hazard at all: a `Dict` compares two tuples elementwise,
+  exactly as it already compares two `Vector{Int}`s, so two different
+  patterns can never share a tuple key. The cost is that `k` has to be
+  known to the compiler as a type parameter (`Val(k)`), not passed as an
+  ordinary `Int`, for the tuple to actually be stored inline; a
+  freshly-built `Val(k)` inside a hot per-call loop costs an allocation
+  in exactly the way this idea is trying to avoid, confirmed empirically
+  while writing this file (32-80 bytes per call, vs. 0 once `Val(k)` is
+  built once and reused).
+
+Both keep `pattern_key`'s own scope restriction: `SparseMatrixCSC` only,
+reading `rowval` directly.
+
+**Allocation, at k=8, both real Birkhoff sizes (identical at both sizes,
+since a Vector/tuple/hash's own allocation depends on k and its element
+type, not on how many atoms are stored):**
+
+| | lookup | insert (key + bucket entry) |
+|---|---|---|
+| `Vector{Int}` (existing) | 128 bytes, 2 allocations | 192 bytes, 4 allocations |
+| `UInt64` | **0 bytes, 0 allocations** | 64 bytes, 2 allocations |
+| `NTuple{8,Int}` | **0 bytes, 0 allocations** | 64 bytes, 2 allocations |
+
+Insert never reaches zero for any representation: even a `UInt64` or an
+inline tuple key still has to allocate a fresh one-element `Vector{Int}`
+bucket the first time a key is seen (`microbenchmark/bucket_lifecycle.jl`'s
+`bucket_insert!`), and at these real sizes' own k=8 collision rate (0.0,
+`results_sparse_pattern_collisions.csv`) a first-time key is the
+overwhelmingly common case. What the 192-vs-64-byte gap is: the
+`Vector{Int}` key itself (128 bytes at k=8) plus that same 64-byte bucket,
+against the bucket alone for the two allocation-free representations. Full
+numbers, every k swept, both Birkhoff sizes, and the L∞-ball/generic
+`Vector{Float64}` value-prefix baseline (measured the same way, for
+context, since its own allocation was never measured directly before this
+file): `microbenchmark/results_pattern_key_reps_allocations.csv`.
+
+**Time and total per-iteration cost, at k=8 (directly comparable to "The
+total" table above, same alphabets, same real sizes):**
+
+| Alphabet (real size) | representation | lookup | insert | delete-repair | total/iter |
+|---|---|---|---|---|---|
+| Birkhoff n=25 (158) | `Vector{Int}` | 31.94 ns | 91.12 ns | 440.08 ns | 2.555 ns |
+| Birkhoff n=25 (158) | `UInt64` | 21.92 ns | 44.16 ns | 378.95 ns | 1.408 ns |
+| Birkhoff n=25 (158) | `NTuple{8,Int}` | 21.56 ns | 34.76 ns | 636.92 ns | 1.278 ns |
+| Birkhoff n=60 (389) | `Vector{Int}` | 33.97 ns | 57.91 ns | 1115.10 ns | 1.843 ns |
+| Birkhoff n=60 (389) | `UInt64` | 23.67 ns | 33.65 ns | 1158.68 ns | 1.173 ns |
+| Birkhoff n=60 (389) | `NTuple{8,Int}` | 24.02 ns | 31.39 ns | 1212.21 ns | 1.138 ns |
+
+Both new representations beat `Vector{Int}` on lookup and insert, not just
+on allocation: lookup is faster too (about 29-33% at both sizes), which is
+the folded/inline key itself being cheaper to build and compare,
+independent of what it costs the allocator. `NTuple{8,Int}` against
+`UInt64` is not a clean sweep, though: it wins insert clearly (21.3%
+faster at n=25, 6.7% at n=60) and lookup narrowly at n=25 (1.6% faster),
+but is 1.5% *slower* than `UInt64` on lookup at n=60, small enough at all
+four points that the choice between them is really the API question
+above (does the caller get to choose `k` at runtime), not a speed
+question. **Delete-repair does not follow the same pattern, and has no
+consistent winner across the two sizes**: `UInt64` beats `Vector{Int}` at
+n=25 (378.95 ns vs. 440.08 ns) but loses at n=60 (1158.68 ns vs. 1115.10
+ns); `NTuple{8,Int}` loses at both (636.92 ns and 1212.21 ns against
+440.08 ns and 1115.10 ns). This is plausible rather than alarming:
+`bucket_delete_repair!` walks every bucket's stored position *values*,
+never touching a key at all (`bucket_lifecycle.jl`), so key type has no
+structural reason to change this cost, and Dict iteration order (which
+can depend on a key's hash, and so differs by representation even at
+identical bucket counts) is enough to explain a difference this size on a
+machine this noisy (`MEASURING.md`). It does not change which
+representation wins overall, since delete-repair is weighted by a real
+per-iteration rate under 0.03% at both Birkhoff sizes
+(`measurement/results.csv`), the same reason it did not change Idea 1's
+own ranking against the scan and the flat prefix hash.
+
+**k sweep: k=8 is no longer the best choice, for either new
+representation.** The original `k=8` was chosen because it was the
+smallest prefix giving perfect discrimination against the flattened value
+prefix, where every extra coordinate read was cheap next to the
+allocation the whole key still cost. With that allocation gone, a smaller
+`k` is close to free to try, and the numbers say to:
+
+| Alphabet (real size) | representation | k=2 | k=4 | k=8 |
+|---|---|---|---|---|
+| Birkhoff n=25 (158) | `UInt64` | 1.253 ns | **1.110 ns** | 1.408 ns |
+| Birkhoff n=25 (158) | `NTuple{k,Int}` | **1.126 ns** | 3.876 ns\* | 1.278 ns |
+| Birkhoff n=60 (389) | `UInt64` | **0.789 ns** | 0.812 ns | 1.173 ns |
+| Birkhoff n=60 (389) | `NTuple{k,Int}` | **0.689 ns** | 2.957 ns\* | 1.138 ns |
+
+\* Reproducible across repeated runs, not noise, but not a property of the
+representation either: at `k=4`, `NTuple{4,Int}`'s marginal insert timing
+(build at size N vs. N+100, differenced) measured 135-178 ns against 19-38
+ns at `k=2` and `k=8` for the same alphabet, most likely a Dict-resize
+boundary landing inside the differenced size range for that one key byte
+width and not the others (`NTuple{2,Int}` is 16 bytes, `NTuple{4,Int}` 32,
+`NTuple{8,Int}` 64); `DECISIONS.md` carries this forward rather than
+smoothing it over. Excluding that one figure, `NTuple`'s own lookup and
+delete-repair costs at k=4 are unremarkable, in line with k=2 and k=8.
+
+`k=2` is not perfectly discriminating: `results_pattern_key_reps_collisions.csv`
+shows a real 27.9% (n=25) / 11.3% (n=60) atom collision rate there, against
+0.0% at `k=4` and `k=8`, confirmed correct regardless (every candidate is
+still checked against the whole atom before being trusted) but not free:
+the extra confirm comparisons show up in delete-repair's walk. `k=4`
+already reaches 0.0% collision (the same finding "Idea 1" reported at
+`k=8`, just one sweep point earlier) and, `k=4`'s `NTuple` insert anomaly
+aside, is at or within a few percent of each representation's own best k
+at both sizes.
+
+`Vector{Int}` was swept at k=2/4/8 too (`results_pattern_key_reps_total.csv`),
+and the honest reading there is that no single k wins at both sizes:
+n=25's order is k=4 (2.045 ns) < k=8 (2.555 ns) < k=2 (2.679 ns), while
+n=60's is k=2 (1.341 ns) < k=4 (1.495 ns) < k=8 (1.843 ns). k=8 is worst
+at n=60 but only middling at n=25, and k=2, which loses outright at n=25,
+wins outright at n=60; nothing about `Vector{Int}`'s own k-ranking is
+one-sided the way `UInt64`'s is (k=8 is `UInt64`'s worst choice at both
+sizes, not just one; `NTuple`'s own k=4 figure is the `*`-marked anomaly
+above, so its k-ranking is not read from here at all). What is one-sided
+is the representation comparison itself: **`Vector{Int}`'s own best case
+at any k (2.045 ns at n=25, 1.341 ns at n=60) still loses to `UInt64`'s
+or `NTuple`'s worst case among k=2/k=4 at the matching size (1.253 ns and
+0.812 ns respectively)**. The representation change is where the larger,
+dependable win is; which k to pick on top of it is a smaller, noisier
+question, most legible for `UInt64`/`NTuple` (avoid k=8) and genuinely
+unresolved for `Vector{Int}` at these two sizes.
+
+**The collision hazard the `UInt64` fold introduces, and how it is
+survived:** because the fold is lossy, `microbenchmark/test_pattern_key_reps.jl`
+constructs two atoms whose real `k=2` patterns are different
+(`pattern_key` returns `[2, 5]` and `[6, 1]`, found by a short random
+search, not designed by hand) but whose `UInt64` fold, narrowed to 1 bit
+via `pattern_key_uint64`'s `bits` keyword (a test-only knob;
+`pattern_key_uint64(atom, k)`'s default is the unnarrowed 64-bit fold),
+collides exactly. The test asserts the resulting `PatternIndexU64` puts
+both atoms in **one bucket holding both indices**, not one index each,
+and that `pattern_lookup_u64` still returns the correct atom for each of
+their own queries, plus a clean miss for a third atom matching neither:
+correctness survives the forced collision because every candidate in a
+bucket is confirmed against the whole atom with `==` before being
+trusted, the bucket is a `Vector{Int}` of candidates rather than a single
+index, and neither is optional for this representation the way they are
+merely convenient for `Vector{Int}`. A second testset checks the
+`NTuple{K,Int}` representation on the same two atoms and confirms it
+keeps them in two separate buckets, since tuple equality is exact: there
+is no forced-collision case to write for it, only the absence of one. At
+the fold's real, unnarrowed default (`bits=64`), this same pair of atoms
+does *not* collide; the hazard is real (the test forces it), not
+something these two real Birkhoff sizes happen to trigger on their own.
+
+**Both new representations agree with each other and with the
+`Vector{Int}` baseline**, checked directly (not just inferred from
+matching totals) in `test_pattern_key_reps.jl`'s third testset, on a
+small hand-built five-atom pool at k=2, every atom's own self-lookup plus
+one deliberate miss; the large-scale sweep itself
+(`run_pattern_key_reps.jl`, the real Birkhoff sizes) does not cross-check
+representations against each other, only against its own timing and
+allocation numbers. The generic `rand(dim)`
+control was kept for this sweep too (`results_pattern_key_reps_*.csv`'s
+`generic_d3000` rows), measured with the existing `Vector{Float64}`
+value-prefix baseline only, since the pattern key does not apply to a
+dense alphabet; nothing about it is surprising (0.0% collision at every
+k, allocation matching the L∞-ball's own `Vector{Float64}` numbers at the
+same k), so it is not discussed further here.
 
 ## The answer
 

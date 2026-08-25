@@ -28,6 +28,18 @@ an editor, other processes). Both this run's noise floor and the fix for a
 specific bias it uncovered are in "Index construction can bias whichever
 measurement runs right after it," below.
 
+The run behind `microbenchmark/results_pattern_key_reps_*.csv`
+(`pattern-key-integer-hash`) was taken on the same laptop, also not idle:
+`uptime` reported a load average of **1.00, 0.63, 0.61** immediately
+before the run started. `Random.seed!(4)` (see `run_pattern_key_reps.jl`'s
+own header) makes the exact atom sequence reproducible across runs on the
+same machine regardless of that load, which is how the `NTuple{4,Int}`
+insert-timing anomaly noted in `README.md`'s k-sweep table and
+`DECISIONS.md` was confirmed to hold at the same magnitude (177.65 ns for
+Birkhoff n=25) across two independent full runs, ruling out ordinary
+timer noise as its explanation even though the machine itself was not
+quiet for either run.
+
 ## Fastest of five, not the mean
 
 Same reasoning as tensor-rank-toolkit's: a slow run measures what else the
