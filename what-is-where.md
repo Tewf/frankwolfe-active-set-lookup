@@ -63,6 +63,19 @@ microbenchmark/              the lookup itself, isolated from any solver
                                    the structure still answers correctly; confirms the
                                    NTuple key has no equivalent hazard; cross-checks all
                                    three representations agree with each other
+  test_atom_generators.jl         real-atom generators for all three alphabets, plus the
+                                   sparse/dense dispatch (route_build/lookup/scan) shared
+                                   by the four confirm-and-sustain test files below
+  test_equivalence.jl             @test: property test, structure vs. scan, seeds x sizes
+                                   (0-500) x k (2/4/8/16) x alphabet, plus duplicates
+  test_lifecycle.jl               @test: randomised insert/delete sequences, checked
+                                   against a fresh scan after every single operation
+  test_fold_quality.jl            @test: the UInt64 fold's collision rate at narrowed bit
+                                   widths vs. Julia's own hash and the birthday prediction
+  test_dispatch.jl                @test: sparse routes to the pattern key, dense to the
+                                   value prefix, both agree with the scan
+TESTING.md                  what each test protects, how to run the suite, what is not
+                             tested yet
 README.md                  the question, the numbers, the answer; leads with the answer
 README.fr.md                the same, in French, updated for the new answer; the
                              "Prefix hashing" section's detail was not translated,
@@ -73,7 +86,7 @@ DECISIONS.md                what is Mohamed's to decide, including the draft iss
 CITATION.cff                how to cite this repository
 LICENSE                     MIT
 .github/workflows/ci.yml    runs every script on every push and asserts
-                             test_soundness.jl's @tests; times nothing
+                             every test_*.jl file's @tests; times nothing
 explain/                    gitignored; HTML explainers for one reader, never shipped
 ```
 
@@ -96,3 +109,12 @@ each read `measurement/results.csv` as plain CSV, to weight their own
 measured lookup/insert/repair costs by the real per-iteration call rates
 that file records, rather than reimplementing a second BPCG harness to
 get the same numbers.
+
+`test_atom_generators.jl` is the one deliberate exception to "no script
+needs another *test* script's code": `test_equivalence.jl`,
+`test_lifecycle.jl`, and `test_dispatch.jl` all include it, for the same
+atom generators and the same sparse/dense dispatch, so a routing bug
+shows up in all three rather than being defined three different ways.
+`test_fold_quality.jl` needs no such sharing (it only ever touches
+Birkhoff atoms) and stays self-contained like `test_soundness.jl` and
+`test_pattern_key_reps.jl` before it.
