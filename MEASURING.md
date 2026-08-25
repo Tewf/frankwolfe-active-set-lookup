@@ -20,6 +20,14 @@ quiet core would give**, and the one place that noise visibly shows
 (whether the microbenchmark's dim=8192 crossover falls at 6,500 or 10,000)
 is called out in `README.md` rather than smoothed over.
 
+The run behind `measurement/results.csv`'s `find_atom_hits` column and
+`microbenchmark/results_prefix_*.csv` was taken on the same laptop, also
+not idle: `uptime` reported a load average of **0.6-1.0** across the two
+runs, lower than the 2.36 above but still real background load (a browser,
+an editor, other processes). Both this run's noise floor and the fix for a
+specific bias it uncovered are in "Index construction can bias whichever
+measurement runs right after it," below.
+
 ## Fastest of five, not the mean
 
 Same reasoning as tensor-rank-toolkit's: a slow run measures what else the
@@ -38,6 +46,23 @@ is the same idea as `BenchmarkTools.jl`'s tuning phase, hand-rolled so the
 whole sweep (96 points, two atom scenarios) finishes in under fifteen
 seconds instead of the many minutes `@benchmark`'s default budget would take
 per point.
+
+## Index construction can bias whichever measurement runs right after it
+
+`microbenchmark/run_prefix.jl` first surfaced this: building a prefix-hash
+index allocates heavily (up to one bucket vector per stored atom), and a
+first pass at that sweep showed the scan measured immediately afterwards
+coming out slower than the same scan measured in isolation, by enough to
+flip a crossover that a controlled re-test (same atoms, same query, scan
+and prefix timed in both orders) showed did not exist: the garbage from
+index construction was getting collected mid-measurement, and it landed on
+whichever method happened to be timed next rather than on the method that
+allocated it. `run_prefix.jl` now calls `GC.gc()` once after building each
+group's indices and once per query type, before either method's timing
+starts, so every measurement in a group starts from the same clean heap.
+This does not appear in `microbenchmark/run.jl`'s original sweep because
+its `Dict` is built once per point, not once per `(size, k)` pair, so the
+same allocation burst is much smaller relative to the timed work.
 
 ## What the harness timer actually measures
 
