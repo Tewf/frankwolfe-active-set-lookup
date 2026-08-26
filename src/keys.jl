@@ -31,6 +31,36 @@ export DEFAULT_K, atom_key
 # "Idea 1, tightened" k-sweep table for the full comparison.
 const DEFAULT_K = 4
 
+
+# Both sparse keys fold through here, and the reason it takes `nzval` as well
+# as the indices is a hazard that is easy to miss.
+#
+# A sparse array may hold an *explicitly stored zero*: an entry that occupies
+# a slot in `nzind`/`rowval` while its value is 0.0. Sparse arithmetic leaves
+# these behind routinely, and nothing drops them unless someone calls
+# `dropzeros!`. Two arrays can therefore be numerically equal, so `==` and
+# `confirm_match` call them one atom, while their stored index arrays differ.
+# Keying on the raw indices would then hand them different keys and the
+# lookup would miss an atom that is present, which is a false negative that
+# no amount of bucket confirmation can catch: the bucket is never reached.
+#
+# This is the sparse twin of the signed-zero hazard on the dense key below,
+# and it is the more reachable of the two. So the fold skips stored zeros and
+# keys only on positions that genuinely hold a nonzero, which is exactly the
+# set `==` compares. Cost stays O(k) unless an array carries a run of stored
+# zeros at its front, which is rare and which only that array pays for.
+function _fold_stored_indices(indices, values, k::Int)
+    h = zero(UInt64)
+    taken = 0
+    @inbounds for i in eachindex(indices)
+        taken >= k && break
+        iszero(values[i]) && continue
+        h = hash(indices[i], h)
+        taken += 1
+    end
+    return h
+end
+
 # Sparse atoms (`SparseMatrixCSC` specifically, not any `AbstractSparseArray`):
 # fold the first k stored row indices (`rowval`, one Int per stored nonzero,
 # in column order) into a UInt64 with an incremental hash. Scope is
@@ -49,11 +79,7 @@ const DEFAULT_K = 4
 # to disagree about, so this key needs no canonicalisation at all, unlike
 # the dense key below.
 function atom_key(atom::SparseMatrixCSC; k::Int=DEFAULT_K)
-    h = zero(UInt64)
-    @inbounds for i in 1:min(k, length(atom.rowval))
-        h = hash(atom.rowval[i], h)
-    end
-    return h
+    return _fold_stored_indices(atom.rowval, atom.nzval, k)
 end
 
 # Sparse *vectors*, which is what several of FrankWolfe.jl's own LMOs return:
@@ -70,11 +96,7 @@ end
 # the next sparse type that names it a third thing. Everything else applies
 # unchanged, including that an `Int` index has no signed zero to canonicalise.
 function atom_key(atom::SparseVector; k::Int=DEFAULT_K)
-    h = zero(UInt64)
-    @inbounds for i in 1:min(k, length(atom.nzind))
-        h = hash(atom.nzind[i], h)
-    end
-    return h
+    return _fold_stored_indices(atom.nzind, atom.nzval, k)
 end
 
 # Dense atoms: no sparse structure to key on, so key on the first k

@@ -209,3 +209,39 @@ end
 
     @test build_index(atoms; k=8).k == 8        # k stays an ordinary keyword
 end
+
+# A sparse array may hold an explicitly stored zero: a slot in nzind whose
+# value is 0.0. Sparse arithmetic leaves these behind and nothing removes
+# them unless dropzeros! is called. Two such arrays can be numerically equal
+# while their stored index arrays differ, so keying on raw indices hands them
+# different keys and the lookup misses an atom that is present. That is a
+# false negative no bucket confirmation can catch, because no bucket is
+# reached. It is the sparse twin of the signed-zero hazard, and the more
+# reachable of the two.
+@testset "explicitly stored zeros do not split one atom into two" begin
+    stored   = SparseVector(5, [1, 2, 4], [1.0, 0.0, 3.0])   # zero occupies a slot
+    dropped  = SparseVector(5, [1, 4],    [1.0, 3.0])        # same vector, canonical
+
+    @test stored == dropped                       # one atom to == and to confirm_match
+    @test stored.nzind != dropped.nzind           # two atoms to a naive index key
+    @test atom_key(stored) == atom_key(dropped)   # but one atom to ours
+
+    for (built, queried) in ((stored, dropped), (dropped, stored))
+        atoms = [built]
+        index = build_index(atoms)
+        @test lookup_atom(index, atoms, queried) == 1
+    end
+
+    # A trailing stored zero must not change the key either, and a run of
+    # leading ones must be skipped rather than consuming the k budget.
+    lead = SparseVector(8, [1, 2, 3, 5, 7], [0.0, 0.0, 1.0, 2.0, 3.0])
+    tidy = SparseVector(8, [3, 5, 7],       [1.0, 2.0, 3.0])
+    @test lead == tidy
+    @test atom_key(lead) == atom_key(tidy)
+
+    # The all-zero atom has no nonzeros at all and must still be handled.
+    empty_a = SparseVector(5, Int[], Float64[])
+    empty_b = SparseVector(5, [2], [0.0])
+    @test empty_a == empty_b
+    @test atom_key(empty_a) == atom_key(empty_b)
+end
