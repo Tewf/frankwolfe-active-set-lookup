@@ -104,7 +104,8 @@ README.md                  the question, the numbers, the answer; leads with the
 README.fr.md                the same, in French, marked as wanting a native pass
 references.md               the papers and the issue, cited never redistributed
 MEASURING.md                the machine, the noise, and what a number here does not claim
-DECISIONS.md                what is Mohamed's to decide, including the draft issue comment
+DECISIONS.md                every judgement call this repository made, and
+                            the ones still open
 CITATION.cff                how to cite this repository
 LICENSE                     MIT
 .github/workflows/ci.yml    runs every script on every push and asserts

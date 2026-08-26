@@ -1,6 +1,6 @@
 # What was tried and refused, with the numbers that killed it
 
-Not an appendix. If a future maintainer, or Mohamed six months from now,
+Not an appendix. If a future maintainer, or the author six months from now,
 proposes any of these again, the numbers below are why they were not
 shipped. Every claim here has a results CSV behind it; the file names are
 given so a claim can be re-checked rather than taken on faith. Longer than

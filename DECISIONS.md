@@ -1,9 +1,13 @@
-# Decisions awaiting Mohamed
+# Design decisions, and the calls still open
 
-Nothing in this repository was posted anywhere. This file is every place a
-human judgement call was made or is still needed, so any of it can be
-revisited. Longer than 80 lines because it is a running log across every
-branch this repository has had, not a single document written once.
+Every place this repository made a human judgement rather than followed a
+measurement, recorded so any of it can be revisited or argued with. It runs
+past eighty lines deliberately: it is a running log kept across every stage
+of the work, not a document written once at the end.
+
+If you want the short version of what was tried and refused, read
+[REJECTED.md](REJECTED.md). If you want how the method works, read
+[METHOD.md](METHOD.md). This file is the reasoning underneath both.
 
 ## The soundness argument was incomplete, and here is the gap
 
@@ -46,7 +50,7 @@ mentioning it would be proposing a silent bug.
 
 ## sparse-key-and-trie: what changed, and what is still a judgement call
 
-Mohamed's brief pointed at the prefix hash's weak spot directly: on Birkhoff
+The brief for this stage pointed at the prefix hash's weak spot directly: on Birkhoff
 atoms, `k=8` gives 9 buckets for 389 atoms, and it wins despite the key being
 nearly useless, not because of it. Two structures were built to fix that, and
 a gap in every measurement so far (lookup only, never insert or deletion) was
@@ -87,7 +91,7 @@ cost, so this was not chased further. That is a scope boundary, not a claim
 that no depth would work.
 
 **The deletion-rate finding is the most useful thing this branch found
-before comparing any structures, and it is not the finding Mohamed's brief
+before comparing any structures, and it is not the finding the brief
 anticipated.** The brief's framing ("if maintenance under `deleteat!` sinks
 all of them, that is the most useful finding available") expected repair
 cost to possibly dominate. It does not, for these three runs: `deleteat!` on
@@ -128,7 +132,7 @@ one file. Flagging it here rather than silently letting it stand.
 
 ## pattern-key-integer-hash: what changed, and what is still a judgement call
 
-Mohamed's brief this time pointed at the sparse-pattern key's own weak
+The brief this time pointed at the sparse-pattern key's own weak
 spot: it is a `Vector{Int}`, so every lookup and every insert allocates
 one before the `Dict` is even touched. `microbenchmark/pattern_key_reps.jl`
 built two allocation-free representations of the identical key (`UInt64`,
@@ -307,14 +311,14 @@ a different `k` at lookup time than the index was built with would silently
 break every query, the same reasoning `pattern_key_uint64`'s `bits` field
 already carries for the research harness's own `PatternIndexU64`.
 
-**This resolves one of "The draft links a private repository"'s three
-options below, but only the restructuring, not the decision itself.**
-Making the repository public was the recommended way out; this branch is
+**This does the restructuring that going public needs, but not the
+decision itself.** Making the repository public was the recommended way
+out; this branch is
 what "public" would need to look like (a stranger has something to read
 and a small module to use, not only benchmark scripts and CSVs), but it
 does not flip the repository's visibility, and nothing in it was posted
-anywhere. That switch, like posting the comment below, is still
-Mohamed's to make.
+anywhere. Both of those remain deliberate human decisions rather than
+anything this work performs on its own.
 
 **A `REJECTED.md`/`METHOD.md` file-length call, same shape as
 `hash_trie.jl`'s and `run_pattern_key_reps.jl`'s above.** Both run past
@@ -326,188 +330,6 @@ killed it," was judged to need four worked examples in one place rather
 than a folder of four short files, since a reader deciding whether to
 re-propose one of these needs to compare it against the others on the
 same page, not follow four links to do it.
-
-## The draft comment for issue #244
-
-**Posting this is Mohamed's to do, not automated, not implied by anything
-else in this repository.** Ready to paste as-is if the numbers still look
-right on a re-read.
-
-**This replaces an earlier draft that concluded no advantage, which was
-itself replaced by a draft that recommended a `k=8` value-prefix hash on
-lookup speed alone.** That second draft never counted insert or deletion
-cost, and never asked whether a better key existed for Birkhoff's
-permutation-matrix atoms specifically; both turn out to matter enough to
-change which structure this draft recommends, though not whether hashing
-helps at all. The earlier text is in git history (`git log -p
-DECISIONS.md`), not repeated here.
-
-> I measured this rather than guessing, and my first pass got the wrong
-> answer, so here is the corrected one. `find_atom`'s linear scan is called
-> whenever `active_set_update!` isn't given an index, which turns out to be
-> more call sites than I expected: every "add to active set" step of BPCG
-> (`blended_pairwise.jl:374`), every pairwise step of plain PFW
-> (`pairwise.jl:242`, since `pfw_step` never supplies one), BCG
-> (`blended_cg.jl:358`), and the generic corrective/block-coordinate drivers
-> (`corrective_frankwolfe.jl:240`, `block_coordinate_algorithms.jl:421`),
-> but never away-step FW, which always tracks its own index.
->
-> On three real BPCG runs (Birkhoff polytope at n=25 and n=60, the L∞-ball
-> at d=3,000; code at github.com/Tewf/frankwolfe-active-set-lookup), active
-> sets topped out at 158-389 atoms and `find_atom` took 0.02%-0.14% of total
-> runtime (`measurement/results.csv`). I first checked whether hashing the
-> *whole* atom would help (linear scan vs. `Dict`, sizes 1-20k, dims
-> 16-8,192) and it doesn't: hashing an atom is always O(dimension), so a
-> full-atom `Dict` only wins once the scan's own O(dimension) worst case is
-> actually being paid, which these three runs never came close to.
->
-> That was the wrong question, though: nobody has to hash the *whole* atom.
-> A hash over just the first `k` coordinates costs O(k), independent of
-> dimension, and is exactly as sound as a full-atom hash, since a bucket
-> hit still gets confirmed against the whole atom with the same exact
-> `_unsafe_equal` before being trusted; a shorter hash can only cost speed,
-> never correctness. I timed that too (`microbenchmark/run_prefix.jl`),
-> against `FrankWolfe.jl`'s own atom shapes this time, not generic random
-> vectors: Birkhoff permutation matrices and L∞-ball box corners, generated
-> by calling `BirkhoffPolytopeLMO`/`LpNormBallLMO{Inf}` directly, and
-> against a hit query (the atom already present, forcing the scan through
-> the whole match) as well as a miss. A `k=8` prefix hash beats the scan for
-> every alphabet and query mix tested, at active-set sizes below every one
-> of the three real runs' own maximum
-> (`microbenchmark/results_prefix_crossover.csv`): 500.6ns vs. 949.4ns on a
-> miss at active-set size 158 (Birkhoff n=25's own maximum), 350.5ns vs.
-> 488.2ns on a hit at the same size.
->
-> So: contrary to what I first wrote here, a prefix-hashed active set would
-> help, at exactly the active-set sizes this workload reaches. But that was
-> lookup speed alone, and `find_atom_hits` in `measurement/results.csv`
-> shows all three real runs produced zero hits: every call is a miss
-> followed by a `push!`, so the real per-iteration cost is lookup plus
-> insert, and `active_set_cleanup!`'s `deleteat!` (which shifts every later
-> index down by one) means a hash→index map needs upkeep on drop too. I
-> costed all three, separately, for four structures, at each run's own
-> real active-set size (158, 389, 241). Two findings changed what I'd
-> propose.
->
-> First: on Birkhoff, the `k=8` prefix hash wins despite the key being
-> nearly useless, not because it's good. A flattened permutation matrix's
-> first 8 entries are almost always zero, so 389 atoms collapse into 9
-> buckets, about 43 candidates per lookup, and the win comes from the O(1)
-> hash step and a cheap sparse `==`, not from narrowing anything.
-> Permutation matrices' real information, *where* the nonzero sits, is
-> already sitting in `SparseMatrixCSC`'s own `rowval` array. Hashing
-> `rowval[1:k]` instead of a flattened value prefix costs the same O(k),
-> and turns those 9 buckets into 158 or 389, one atom per bucket, at both
-> real Birkhoff sizes. On total per-iteration cost this beats the value-prefix
-> hash by 4.8-25.6x (2.72ns vs. 13.11ns at size 158; 1.88ns vs. 48.11ns at
-> size 389) and, as a bonus, has no signed-zero hazard at all: the key is
-> `Vector{Int}`, which has no sign of zero to disagree about. For the
-> L∞-ball, nothing beat the plain `k=8` value-prefix hash (3.31ns at
-> size 241): its atoms don't have the sparse structure to exploit, and the
-> hash already wins by an order of magnitude over the scan (33.52ns) there.
->
-> Second: I also tried a hash trie, recursing into a further coordinate
-> block only where a bucket still collides, swept across four
-> coordinate-selection strategies (first-k, strided, a fixed random sample,
-> and one ordered by distinct value count, the way a composite database
-> index would be), three values of `k`, and three depths, at every real
-> active-set size. It never won outright. Even its best swept config for
-> Birkhoff n=25 (which does fully resolve every collision) was measurably
-> slower than doing nothing, because building its own key and walking
-> multiple dict levels on every insert costs more than the lookup speed it
-> buys back. I'm not proposing it: a simpler structure that wins beats a
-> more general one that doesn't earn its complexity here, though the
-> underlying idea (recurse only where atoms are genuinely confusable) may
-> still be worth it for a polytope whose vertices are more confusable than
-> either of these.
->
-> Third, and this is the finding I did not expect: deletion barely
-> matters, in these three runs specifically. `deleteat!` on an individual
-> atom happened 2, 1, and 0 times across 8,002/20,002/15,002 iterations.
-> Repair is real and not free per operation (it costs more than the raw
-> `deleteat!` shift it sits alongside, for every structure I measured), but
-> at a rate this low it does not change which structure wins. I would not
-> generalize this to every FrankWolfe.jl workload: it's specific to BPCG
-> with `lazy=true` run to a tight tolerance, the only algorithm I ran end
-> to end. Would you want a hash-augmented default `ActiveSet`, or a
-> separate subtype the way `ActiveSetQuadraticProductCaching`
-> (`active_set_quadratic.jl`) already is? I'd lean subtype again, more
-> strongly now: which key to use is polytope-dependent in kind, not just in
-> `k` (a sparse structural key for permutation-matrix-like atoms, a value
-> prefix otherwise), which argues even harder for something the caller
-> chooses rather than a fixed default.
->
-> Fourth, and this is a refinement of the sparse-pattern key itself, not a
-> new idea: that key is a `Vector{Int}`, so every lookup and every insert
-> allocates one before the `Dict` is even touched. I built two more
-> representations of the identical key (same `rowval[1:k]`, just stored
-> differently): a `UInt64` folded with an incremental hash, and an
-> `NTuple{k,Int}`, Julia's fixed-length tuple, stored inline rather than on
-> the heap. Both eliminate the allocation entirely: 0 bytes and 0
-> allocations per lookup, at every k I tried, against the `Vector{Int}`
-> key's 80-128 bytes and 2 allocations (scaling with k). Lookup and insert
-> got faster too, not just allocation-free: at k=8, both new
-> representations beat `Vector{Int}` by roughly 1.6-2x on total
-> per-iteration cost at both real Birkhoff sizes, and lowering k further
-> (which no longer costs anything on the allocation side) widens that to
-> roughly 2x. I'd propose the `UInt64` fold specifically, not the tuple,
-> even though the tuple usually measured a little faster (it is not a
-> clean sweep: 21.3%/6.7% faster on insert at n=25/n=60, 1.6% faster on
-> lookup at n=25, but 1.5% *slower* on lookup at n=60): the tuple needs
-> `k` fixed as a compile-time type parameter to actually stay
-> allocation-free, while the `UInt64` fold takes `k` as an ordinary `Int`,
-> the same as today's key does, which matters more than a few percent if
-> `k` should stay something a caller picks per polytope rather than bakes
-> into a type. The fold does introduce a real hazard the `Vector{Int}` key
-> doesn't have: two *different* patterns can now fold to the same
-> `UInt64`, a genuine hash collision, not just a prefix tie. I forced one
-> in a test (two real Birkhoff atoms with verifiably different patterns,
-> narrowed to a 1-bit fold) and confirmed the structure still answers
-> every query correctly, because the bucket holds a list of candidates,
-> confirmed against the whole atom, exactly the same argument that already
-> makes the flat prefix hash and the sparse-pattern key sound. The tuple
-> representation has no such hazard at all, by construction, if that
-> simplicity is worth the API cost to you.
->
-> One caveat that belongs with the idea rather than after it. The confirmation
-> step makes bucket collisions harmless, but there is a false-negative case it
-> cannot reach: `_unsafe_equal` compares with `!=` and so follows `==`
-> semantics, while a `Dict` follows `isequal`, and the two disagree about the
-> sign of zero. `0.0 == -0.0` is true and `isequal(0.0, -0.0)` is false, so two
-> atoms differing only there are one atom to the scan and two to a hash, and
-> the lookup misses without ever reaching a bucket. I could not reach it
-> through your bundled LMOs: `LpNormBallLMO{Inf}` returns `-1.0` at a zero
-> gradient component, not the `-0.0` a naive `-1.0 .* sign.(g)` would give,
-> and neither alphabet I measured contains a negative zero at all. So it is a
-> gap in the contract rather than a live bug, and it would bite a
-> user-supplied LMO or an atom built by scaling or negation elsewhere. Keying
-> on `prefix .+ 0.0` instead of
-> `prefix` closes it for one addition per hashed coordinate, leaving every
-> other Float64 bit-identical. NaN goes the harmless way: the scan says not
-> equal, the hash collides and then fails confirmation, so both agree.
-
-
-## The draft links a private repository
-
-The comment above cites `github.com/Tewf/frankwolfe-active-set-lookup` as where
-the code lives. **This repository is private**, so that link 404s for everyone
-who reads the issue, which is worse than no link at all.
-
-Three ways out, and this one has to be settled before the comment is posted:
-
-- **Make it public first.** It is a measurement of a public library answering a
-  public issue, and there is nothing in it that is not already sayable in the
-  comment. This is the option that makes the comment strongest, since the
-  numbers become checkable by the maintainers rather than asserted.
-- **Drop the link** and let the comment stand on the numbers alone. It still
-  reads as work rather than opinion, but nobody can re-run it.
-- **Post the numbers, offer the code.** "Happy to share the harness if useful":
-  keeps the repository private and puts the choice on them.
-
-**Recommendation: make it public before posting.** A measurement whose code
-cannot be inspected is an assertion, and the whole point of answering a
-five-year-old question this way is that the answer can be checked. The
-repository contains no personal data and no unpublished work.
 
 ## Open questions, unresolved by this repository
 

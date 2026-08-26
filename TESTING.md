@@ -122,10 +122,10 @@ suite above.
   `active_set_cleanup!`'s shape, not the actual package types or a real
   BPCG run driving them. Nothing here would catch an integration bug in
   how a hashed index gets threaded through `ActiveSet`'s own fields.
-- **PFW and BCG are untested.** `DECISIONS.md`'s own draft issue comment
-  lists their call sites (`pairwise.jl:242`, `blended_cg.jl:358`,
-  `corrective_frankwolfe.jl:240`, `block_coordinate_algorithms.jl:421`) as
-  found by grep, never run; this suite inherits that gap unchanged. The
+- **PFW and BCG are untested.** Their call sites were found by reading the
+  source (`pairwise.jl:242`, `blended_cg.jl:358`,
+  `corrective_frankwolfe.jl:240`, `block_coordinate_algorithms.jl:421`) and
+  never exercised; this suite inherits that gap unchanged. The
   lifecycle test's insert/delete mix is synthetic, not drawn from any of
   these algorithms' real call patterns.
 - **Only three atom alphabets.** Birkhoff permutation matrices, L-infinity
