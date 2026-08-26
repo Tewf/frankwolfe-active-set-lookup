@@ -2,7 +2,8 @@
 
 Nothing in this repository was posted anywhere. This file is every place a
 human judgement call was made or is still needed, so any of it can be
-revisited.
+revisited. Longer than 80 lines because it is a running log across every
+branch this repository has had, not a single document written once.
 
 ## The soundness argument was incomplete, and here is the gap
 
@@ -256,6 +257,76 @@ branch does not know why `run_lifecycle.jl` itself was not flagged when
 it was added, only that the same reasoning that exempted it applies here
 too.
 
+## public-ready: what changed, and what is still a judgement call
+
+This branch's brief was to turn a private research harness into something
+a stranger could read and use, without changing any measured number. It
+added `src/` (a small, decomposable module: `keys.jl`, `confirm.jl`,
+`index.jl`, the design README.md's opening paragraph and METHOD.md now
+describe), `test/test_public_api.jl`, `METHOD.md`, and `REJECTED.md`, and
+rewrote `README.md` and `README.fr.md` around a stranger's entry point
+rather than the research narrative. This section is the audit trail for
+the judgement calls that restructuring made, the same role the two
+sections above serve for their own branches.
+
+**`src/` duplicates rather than shares code with `microbenchmark/`, on
+purpose.** `sparse_pattern.jl`'s `pattern_key`, `pattern_key_reps.jl`'s
+`pattern_key_uint64`, `lookup_methods.jl`'s prefix-hash reads, and
+`bucket_lifecycle.jl`'s insert/repair are, underneath, the same ideas
+`src/keys.jl` and `src/index.jl` now ship. They were not unified into one
+shared file, because the two have different jobs: `microbenchmark/`'s
+copies exist to be compared against a scan, a full-Dict hash, and a
+trie, and stay free to keep changing shape as new ideas get swept;
+`src/`'s copies exist to be the one thing a caller actually uses, and
+importing `src/` from a benchmark script (or vice versa) would either
+make the module depend on files whose whole purpose is churn, or make the
+research harness's own numbers depend on the module they are supposed to
+be justifying from outside. `what-is-where.md` states this explicitly
+rather than leaving it to be noticed. The cost is real: a future fix to
+the fold or the repair walk has to be made in two places if both are
+meant to keep agreeing, and nothing here enforces that they do beyond
+`test/test_public_api.jl` and `microbenchmark/test_*.jl` each checking
+their own copy against a scan independently.
+
+**Nothing under `measurement/` or `microbenchmark/` was edited.** Every
+file this branch added is new; `git diff` against `main` touches no
+existing script, so every committed `results*.csv` is exactly the file
+that was already there, and CI's existing steps needed no changes to keep
+covering them. Only a new CI step, running `test/test_public_api.jl`, was
+added for the new module.
+
+**Naming: `push_atom!`/`delete_atom!`, not `Base.insert!`/`Base.delete!`.**
+The public API's "insert" always appends (mirroring
+`active_set_update!`'s `push!` branch, the one every real BPCG run this
+repository measured actually took), never inserts at an arbitrary
+position the way `Base.insert!(vector, i, x)` does; naming it `push_atom!`
+says that directly rather than relying on a reader to check the
+signature. `k` stays out of `lookup_atom`/`push_atom!`/`delete_atom!`'s
+own arguments entirely, read off the index instead: letting a caller pass
+a different `k` at lookup time than the index was built with would silently
+break every query, the same reasoning `pattern_key_uint64`'s `bits` field
+already carries for the research harness's own `PatternIndexU64`.
+
+**This resolves one of "The draft links a private repository"'s three
+options below, but only the restructuring, not the decision itself.**
+Making the repository public was the recommended way out; this branch is
+what "public" would need to look like (a stranger has something to read
+and a small module to use, not only benchmark scripts and CSVs), but it
+does not flip the repository's visibility, and nothing in it was posted
+anywhere. That switch, like posting the comment below, is still
+Mohamed's to make.
+
+**A `REJECTED.md`/`METHOD.md` file-length call, same shape as
+`hash_trie.jl`'s and `run_pattern_key_reps.jl`'s above.** Both run past
+the ~80-logical-line trigger (126 and 124 lines respectively, most of it
+prose rather than code); both state their own reason at the top, per this
+branch's understanding of the convention, rather than being flagged only
+here. `REJECTED.md`'s role, "every rejected method, with the number that
+killed it," was judged to need four worked examples in one place rather
+than a folder of four short files, since a reader deciding whether to
+re-propose one of these needs to compare it against the others on the
+same page, not follow four links to do it.
+
 ## The draft comment for issue #244
 
 **Posting this is Mohamed's to do, not automated, not implied by anything
@@ -462,20 +533,17 @@ repository contains no personal data and no unpublished work.
   This now also scopes the deletion-rate finding below: the 2/1/0
   deletions counted are BPCG's, at `lazy=true` and `epsilon=1e-9`, not a
   general property of these problems under every algorithm or tolerance.
-- **README.fr.md is now behind by two branches' worth of answer, not
-  one.** It still carries `sparse-key-and-trie`'s predecessor's headline
-  (the plain `k=8` prefix-hash answer), never updated for
-  `sparse-key-and-trie`'s own "lifecycle costed" headline, let alone this
-  branch's further refinement; nor is the fuller "Prefix hashing" section
-  that carries the crossover table and the collision-rate explanation
-  translated, nor `sparse-key-and-trie`'s "Lookup is not the whole cost"
-  section (idea 1, idea 2, the deletion-rate finding, the
-  total-per-iteration table), nor this branch's "Idea 1, tightened"
-  section. This branch did not attempt to close that gap, since it is
-  pre-existing debt from a prior branch, not something `pattern-key-integer-hash`
-  introduced; a native read and a full resync is worth doing before
-  anything with this
-  repository's URL in it goes out.
+- **README.fr.md was rewritten by `public-ready`, not by a native
+  speaker.** The two-branches-behind gap this item used to describe
+  (the plain `k=8` prefix-hash headline, untranslated "Prefix hashing"
+  and "Lookup is not the whole cost" sections) no longer exists:
+  `public-ready` replaced `README.fr.md` wholesale, following the new
+  `README.md`'s own shortened structure rather than translating the old
+  one section by section. What is still open is quality, not staleness:
+  the translation is this branch's own French, flagged at the top of the
+  file itself as wanting a native pass, the same way this item asked for
+  one. Read it against `README.md` before either goes out to anyone who
+  would notice a wrong idiom.
 - **The CI workflow was written, not observed green.** No GitHub run of
   `.github/workflows/ci.yml` has happened yet, now including the two new
   steps this branch added (the lifecycle sweep, `test_soundness.jl`'s
