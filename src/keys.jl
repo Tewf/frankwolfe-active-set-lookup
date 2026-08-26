@@ -56,6 +56,27 @@ function atom_key(atom::SparseMatrixCSC; k::Int=DEFAULT_K)
     return h
 end
 
+# Sparse *vectors*, which is what several of FrankWolfe.jl's own LMOs return:
+# `KSparseLMO` hands back a `SparseVector{Float64,Int64}`, and a
+# `SparseMatrixCSC` atom flattened with `vec` becomes one too. Its stored
+# indices live in `nzind` rather than `rowval`, and for a vector they are
+# plain ascending positions, so "the first k stored indices" is if anything
+# more directly meaningful here than in the matrix case.
+#
+# This is a separate method rather than a widening of the one above to
+# `AbstractSparseArray`, exactly as that method's own comment prescribes: the
+# two types name their index array differently, so one signature covering
+# both would have to branch on the field name at run time and would break on
+# the next sparse type that names it a third thing. Everything else applies
+# unchanged, including that an `Int` index has no signed zero to canonicalise.
+function atom_key(atom::SparseVector; k::Int=DEFAULT_K)
+    h = zero(UInt64)
+    @inbounds for i in 1:min(k, length(atom.nzind))
+        h = hash(atom.nzind[i], h)
+    end
+    return h
+end
+
 # Dense atoms: no sparse structure to key on, so key on the first k
 # coordinate *values* instead, canonicalised with `+ 0.0`. That addition
 # turns `-0.0` into `0.0` and leaves every other Float64 bit-identical

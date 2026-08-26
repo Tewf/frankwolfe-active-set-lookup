@@ -176,3 +176,36 @@ end
     miss = perm([1, 2, 3, 4, 5, 6])
     @test lookup_atom(index, atoms, miss) == -1
 end
+
+# A SparseVector is the third atom shape, and it is not a corner case:
+# FrankWolfe.KSparseLMO returns one, and a SparseMatrixCSC atom flattened
+# with `vec` becomes one too. Before this method existed, `build_index` threw
+# a MethodError on both, which is the first thing a newcomer would have hit.
+@testset "sparse vectors are a first-class atom shape" begin
+    lmo = FrankWolfe.KSparseLMO(3, 1.0)
+    atoms = [FrankWolfe.compute_extreme_point(lmo, randn(40)) for _ in 1:8]
+    @test eltype(atoms) <: SparseVector
+
+    index = build_index(atoms)
+    @test index.k == DEFAULT_K
+    @test index isa SparsePatternIndex          # routed like a sparse atom, not a dense one
+
+    # The invariant every other test here also holds to: agree with a scan.
+    for (i, a) in enumerate(atoms)
+        @test lookup_atom(index, atoms, a) == findfirst(b -> b == a, atoms)
+    end
+
+    fresh = FrankWolfe.compute_extreme_point(lmo, randn(40))
+    if !any(a -> a == fresh, atoms)
+        @test lookup_atom(index, atoms, fresh) == -1
+        push_atom!(index, atoms, fresh)
+        @test lookup_atom(index, atoms, fresh) == length(atoms)
+    end
+
+    delete_atom!(index, atoms, 2)
+    for (i, a) in enumerate(atoms)
+        @test lookup_atom(index, atoms, a) == findfirst(b -> b == a, atoms)
+    end
+
+    @test build_index(atoms; k=8).k == 8        # k stays an ordinary keyword
+end

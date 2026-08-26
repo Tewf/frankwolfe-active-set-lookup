@@ -67,6 +67,14 @@ function build_index(atoms::AbstractVector{<:SparseMatrixCSC}; k::Int=DEFAULT_K)
     return SparsePatternIndex(k, buckets)
 end
 
+function build_index(atoms::AbstractVector{<:SparseVector}; k::Int=DEFAULT_K)
+    buckets = Dict{UInt64,Vector{Int}}()
+    for (idx, atom) in enumerate(atoms)
+        bucket_insert!(buckets, atom_key(atom; k=k), idx)
+    end
+    return SparsePatternIndex(k, buckets)
+end
+
 function build_index(atoms::AbstractVector{<:Array}; k::Int=DEFAULT_K)
     buckets = Dict{Vector{Float64},Vector{Int}}()
     for (idx, atom) in enumerate(atoms)
