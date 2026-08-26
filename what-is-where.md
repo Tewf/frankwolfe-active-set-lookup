@@ -11,8 +11,10 @@ src/                        the method itself, usable without reading a benchmar
   confirm.jl                  the confirmation step: exact equality, mirroring
                                FrankWolfe.jl's own _unsafe_equal dispatch
   index.jl                    the index structure: build_index, lookup_atom,
-                               push_atom!, delete_atom!, over a caller-owned
-                               atoms Vector
+                               push_atom!, delete_atom! over a caller-owned
+                               atoms Vector, plus bucket_health, whose mean
+                               bucket size shows METHOD.md's precondition
+                               going unmet
 test/                       tests for src/, independent of microbenchmark/'s
                              own test suite (which tests the comparisons that
                              led to this design, not this module's code)
