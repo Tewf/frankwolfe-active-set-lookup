@@ -20,7 +20,7 @@ include(joinpath(@__DIR__, "keys.jl"))
 include(joinpath(@__DIR__, "confirm.jl"))
 using .AtomKeys, .AtomConfirm
 
-export AtomIndex, SparsePatternIndex, DenseValueIndex,
+export AtomIndex, SparsePatternIndex, DenseValueIndex, bucket_health,
     build_index, lookup_atom, push_atom!, delete_atom!
 
 abstract type AtomIndex end
@@ -81,6 +81,28 @@ function build_index(atoms::AbstractVector{<:Array}; k::Int=DEFAULT_K)
         bucket_insert!(buckets, atom_key(atom; k=k), idx)
     end
     return DenseValueIndex(k, buckets)
+end
+
+
+# A one-line health check for the precondition stated in METHOD.md: the k
+# positions a key reads have to differ across the atoms, and only sparse
+# atoms get that guarantee for free from `nzind`. A dense key reads fixed
+# cells and assumes they vary, which box corners satisfy and an atom with a
+# dominant repeated value does not.
+#
+# Mean bucket size is the cheapest way to see it. Near 1.0 means the key is
+# separating atoms and every lookup confirms about one candidate. Near the
+# atom count means every atom shares a key, so each lookup hashes and then
+# scans the whole set, which is slower than the plain scan this replaces
+# while still being correct. Raising k will not rescue that case: if the
+# cells being read are constant, reading more constant cells adds nothing.
+# The fix is to read positions that vary. `REJECTED.md` has the measurements
+# on selecting such positions and why that was not worth it where `nzind`
+# already supplies them.
+function bucket_health(index::AtomIndex)
+    isempty(index.buckets) && return 0.0
+    total = sum(length(b) for b in values(index.buckets))
+    return total / length(index.buckets)
 end
 
 # The one lookup, for either index type: hash `query` down to a bucket

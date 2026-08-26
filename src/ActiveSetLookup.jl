@@ -23,7 +23,7 @@ include(joinpath(@__DIR__, "index.jl"))
 
 using .AtomKeys, .AtomConfirm, .AtomIndexing
 
-export DEFAULT_K, atom_key, confirm_match,
+export DEFAULT_K, atom_key, confirm_match, bucket_health,
     AtomIndex, SparsePatternIndex, DenseValueIndex,
     build_index, lookup_atom, push_atom!, delete_atom!
 

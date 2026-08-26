@@ -94,6 +94,48 @@ canonicalisation step the pattern key remembers to take.
 and the fix; `test/test_public_api.jl` checks the shipped `atom_key`
 closes it.
 
+## The precondition: the positions the key reads must vary
+
+The method is often described as working "for sparse atoms". That is the wrong
+boundary and it will mislead whoever reads it next. What the key actually needs
+is narrower and simpler:
+
+> **The k positions the key reads must differ across the atoms in the set.**
+
+Sparsity is not the property, it is a way of getting the property for free.
+`nzind` lists only positions that hold something, so reading the first k of them
+reads k positions that vary by construction. That is why the sparse key needs no
+selection, no tuning and no knowledge of the other atoms.
+
+A dense key has no such guarantee. It reads fixed cells and assumes they vary.
+Box corners satisfy that assumption, since every coordinate is independently
+plus or minus one. **Atoms with a dominant repeated value do not.** Five dense
+atoms that are 7.0 everywhere except one late position all produce the same key
+and land in one bucket:
+
+    atoms = [fill(7.0, 40) with a single 3.0 at position 12, 19, 25, 31, 37]
+    build_index(atoms)   ->   1 bucket for 5 atoms
+
+A simplex vertex stored densely is the same shape, and it is the permutation
+case in a different container.
+
+**It fails safe, not wrong.** Confirmation still returns the correct answer, so
+the cost is a wasted hash followed by a scan of the whole bucket: slower than
+the plain scan it replaced, never incorrect. That is the right way round for a
+degradation, but it is still a degradation.
+
+**How to notice.** `bucket_health(index)` returns the mean bucket size. Near 1.0
+means the key is separating atoms. Near the atom count means it is reading
+constant positions, and the fix is to read different ones rather than to read
+more of them: raising k does not help when the cells it adds are constant too.
+
+Selecting positions that vary, by rarity or by spread, is the general answer and
+is measured in `REJECTED.md`. It was rejected for the sparse case because the
+selection has to be built from the whole atom set, maintained as that set churns,
+and can go stale and silently invalidate every stored key. Those costs are real
+whether or not the atoms are sparse; they are simply not worth paying when
+`nzind` hands you varying positions for nothing.
+
 ## Choosing k
 
 `DEFAULT_K = 4` (`src/keys.jl`) is measured, not guessed: the smallest k

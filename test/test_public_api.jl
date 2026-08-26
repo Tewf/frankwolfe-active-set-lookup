@@ -245,3 +245,31 @@ end
     @test empty_a == empty_b
     @test atom_key(empty_a) == atom_key(empty_b)
 end
+
+# METHOD.md states the precondition: the k positions a key reads must differ
+# across the atoms. Sparse atoms get that free from nzind, which only lists
+# positions holding something. A dense key reads fixed cells and assumes they
+# vary, which box corners satisfy and an atom with a dominant repeated value
+# does not. This pins both halves: the degenerate case stays CORRECT, and
+# bucket_health reports it so a user can see it rather than guess.
+@testset "the precondition, and the diagnostic that reveals it" begin
+    # Dense atoms that are 7.0 everywhere except one late position.
+    degenerate = [(v = fill(7.0, 40); v[10 + i] = 3.0; v) for i in 1:5]
+    index = build_index(degenerate)
+
+    @test length(index.buckets) == 1                 # every atom shares a key
+    @test bucket_health(index) == length(degenerate) # and the diagnostic says so
+
+    # Correct anyway: confirmation still resolves every atom.
+    for (i, a) in enumerate(degenerate)
+        @test lookup_atom(index, degenerate, a) == i
+    end
+    @test lookup_atom(index, degenerate, fill(7.0, 40)) == -1
+
+    # Raising k does not rescue it, because the added cells are constant too.
+    @test bucket_health(build_index(degenerate; k = 8)) == length(degenerate)
+
+    # A healthy index sits at one atom per bucket.
+    varied = [randn(40) for _ in 1:20]
+    @test bucket_health(build_index(varied)) == 1.0
+end
