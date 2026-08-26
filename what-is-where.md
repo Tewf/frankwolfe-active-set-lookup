@@ -3,6 +3,22 @@
 ```
 Project.toml               dependencies: FrankWolfe, TimerOutputs, LinearAlgebra
 Manifest.toml               the exact resolved versions; gitignored, see .gitignore
+src/                        the method itself, usable without reading a benchmark
+  ActiveSetLookup.jl          the module: includes the three files below and
+                               re-exports their public names in one place
+  keys.jl                     computing a key from an atom: the folded sparse
+                               pattern key, the dense value key, DEFAULT_K=4
+  confirm.jl                  the confirmation step: exact equality, mirroring
+                               FrankWolfe.jl's own _unsafe_equal dispatch
+  index.jl                    the index structure: build_index, lookup_atom,
+                               push_atom!, delete_atom!, over a caller-owned
+                               atoms Vector
+test/                       tests for src/, independent of microbenchmark/'s
+                             own test suite (which tests the comparisons that
+                             led to this design, not this module's code)
+  test_public_api.jl          @test: build_index dispatch, lookup-vs-scan
+                               equivalence, push_atom!/delete_atom! lifecycle,
+                               the signed-zero fix, a forced fold collision
 measurement/                a real BPCG run, instrumented, on problems where the
                              active set grows
   instrumentation.jl          times, counts, and counts hits for find_atom without
@@ -76,10 +92,14 @@ microbenchmark/              the lookup itself, isolated from any solver
                                    value prefix, both agree with the scan
 TESTING.md                  what each test protects, how to run the suite, what is not
                              tested yet
-README.md                  the question, the numbers, the answer; leads with the answer
-README.fr.md                the same, in French, updated for the new answer; the
-                             "Prefix hashing" section's detail was not translated,
-                             see DECISIONS.md
+METHOD.md                  how the folded sparse-pattern key works and why it is
+                             correct, including the signed-zero subtlety
+REJECTED.md                 what was tried and refused, with the numbers that
+                             killed it; the most useful file for the next person
+                             who proposes hashing the whole atom, or a trie
+README.md                  the question, the numbers, the answer; leads with the
+                             answer, then a usable code sample and how to reproduce
+README.fr.md                the same, in French, marked as wanting a native pass
 references.md               the papers and the issue, cited never redistributed
 MEASURING.md                the machine, the noise, and what a number here does not claim
 DECISIONS.md                what is Mohamed's to decide, including the draft issue comment
@@ -118,3 +138,21 @@ shows up in all three rather than being defined three different ways.
 `test_fold_quality.jl` needs no such sharing (it only ever touches
 Birkhoff atoms) and stays self-contained like `test_soundness.jl` and
 `test_pattern_key_reps.jl` before it.
+
+`src/` is a third, separate concern, not a directory this house style's
+dependency rules apply to the same way: it needs nothing from
+`measurement/` or `microbenchmark/`, only `SparseArrays` from Julia's own
+standard library, and nothing in `measurement/` or `microbenchmark/`
+needs anything from it either. That is deliberate, not an oversight: the
+research harness's own copies of the key/index/confirm logic
+(`sparse_pattern.jl`, `pattern_key_reps.jl`, `bucket_lifecycle.jl`,
+`lookup_methods.jl`) exist to compare several structures against each
+other and against a scan, which is a different job from `src/`'s, "be the
+one structure a caller actually uses," and sharing code between the two
+would mean either the benchmark harness importing from the very module
+its own numbers are meant to justify, or `src/` depending on files whose
+job is to keep changing as new ideas get swept. `test/test_public_api.jl`
+depends only on `src/`, for the same reason: it is the test for the
+module a stranger would use, not another copy of the research harness's
+own equivalence checks (which stay under `microbenchmark/`, and are
+listed above).
