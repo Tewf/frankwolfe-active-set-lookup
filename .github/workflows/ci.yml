@@ -18,8 +18,9 @@ jobs:
     # about 20 seconds (see MEASURING.md). confirm-and-sustain's four
     # correctness tests add about 20 seconds total (test_fold_quality.jl,
     # at ~13s, is the only one of the four that isn't sub-second: it
-    # generates 40,000 real Birkhoff atoms across five trials). 20 covers a
-    # cold cache and a slower shared runner.
+    # generates 40,000 real Birkhoff atoms across five trials).
+    # public-ready's test/test_public_api.jl adds about 3 seconds more. 20
+    # covers a cold cache and a slower shared runner.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -168,3 +169,11 @@ jobs:
       # comparison table either way; only fails if the fold is clustering.
       - name: The fold-quality-vs-birthday tests pass
         run: julia --project=. microbenchmark/test_fold_quality.jl
+
+      # public-ready's own module (src/): the public build_index/lookup_atom/
+      # push_atom!/delete_atom! API, checked against a scan independently of
+      # microbenchmark/'s test_*.jl files above, which test the comparisons
+      # that led to this design rather than this module's own code. A real
+      # pass/fail check, same as every @test step above.
+      - name: The public src/ module's own tests pass
+        run: julia --project=. test/test_public_api.jl
