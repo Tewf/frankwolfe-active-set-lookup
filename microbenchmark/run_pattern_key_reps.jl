@@ -1,5 +1,5 @@
-# `pattern-key-integer-hash`'s brief: `sparse_pattern.jl`'s `pattern_key`
-# already won on total per-iteration cost (README.md's "Idea 1"), but its
+# The representation stage's brief: `sparse_pattern.jl`'s `pattern_key`
+# already won on total per-iteration cost (DECISIONS.md's "The sparse-pattern key and the trie"), but its
 # key is a `Vector{Int}`, and every lookup and every insert allocates one
 # before the `Dict` is even touched. `pattern_key_reps.jl` builds two
 # allocation-free representations of the same key (`UInt64`, `NTuple{K,Int}`);

@@ -14,7 +14,7 @@
 # above the real BPCG rate `measurement/results.csv` recorded (2, 1, and 0
 # deletions across 8,002-20,002 iterations): the point here is to exercise
 # `bucket_delete_repair!` hard, not to reproduce how rarely a real run
-# calls it (README.md's "Lookup is not the whole cost" already covers
+# calls it (DECISIONS.md's "The sparse-pattern key and the trie" already covers
 # that question).
 #
 # On failure, the exact operation sequence is not replayable from the

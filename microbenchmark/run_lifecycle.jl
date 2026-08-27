@@ -1,4 +1,4 @@
-# `sparse-key-and-trie`'s brief: every measurement up to this point timed
+# The lifecycle stage's brief: every measurement up to this point timed
 # lookups only, and `measurement/results.csv` shows the three real BPCG
 # runs produced zero `find_atom` hits, i.e. every single call was
 # followed by a `push!`. The real per-iteration cost is lookup plus

@@ -1,5 +1,5 @@
-# `pattern-key-integer-hash`'s brief: `sparse_pattern.jl`'s `pattern_key`
-# already won (README.md's "Idea 1"), but its key is a `Vector{Int}`, so
+# The representation stage's brief: `sparse_pattern.jl`'s `pattern_key`
+# already won (DECISIONS.md's "The sparse-pattern key and the trie"), but its key is a `Vector{Int}`, so
 # every lookup and every insert allocates a small array before the `Dict`
 # is even touched. This file builds two more representations of the exact
 # same pattern (`rowval[1:k]`), chosen to remove that allocation:

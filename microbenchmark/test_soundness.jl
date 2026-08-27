@@ -10,7 +10,7 @@
 # the whole atom does not catch it, because the lookup never reaches a bucket
 # at all. It is the one way a hashed lookup can be unsound here.
 #
-# `sparse-key-and-trie`'s two new structures (`sparse_pattern.jl`,
+# The lifecycle stage's two new structures (`sparse_pattern.jl`,
 # `hash_trie.jl`) are checked against the same hazard below: the pattern key
 # turns out to be immune to it for a structural reason, not because it
 # remembered to canonicalise anything; the trie key is exactly as exposed as

@@ -1,5 +1,5 @@
 # Closes the two gaps ../DECISIONS.md and ../README.md's original answer
-# left open (see ../README.md's "Prefix hashing" section for the write-up):
+# left open (see ../REJECTED.md's section 2 for the write-up):
 #
 # Gap 1: run.jl's Dict hashes the *whole* atom, always O(dimension). A hash
 # over only the atom's first `k` coordinates costs O(k), flat in dimension,

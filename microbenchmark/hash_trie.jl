@@ -1,4 +1,4 @@
-# Idea 2 of `sparse-key-and-trie` (Mohamed's design): a hash trie over
+# Idea 2 of the lifecycle stage: a hash trie over
 # coordinate blocks. `run_prefix.jl`'s prefix hash is a single flat level:
 # hash `k` coordinates, and whatever lands in one bucket pays a full
 # residual scan. A trie adds levels only where atoms are genuinely
@@ -74,7 +74,7 @@ end
 
 random_order(dim::Int, rng::AbstractRNG) = Random.shuffle(rng, collect(1:dim))
 
-# "What databases do when ordering a composite index" (Mohamed's brief):
+# "What databases do when ordering a composite index", as the brief put it:
 # rank coordinates by how many distinct values they take across the
 # atoms actually being indexed, most first, computed once over the whole
 # pool a build starts from (a real composite index picks one column

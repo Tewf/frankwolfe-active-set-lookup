@@ -15,7 +15,7 @@
 # key, and every *other* bucket may hold positions past the one removed),
 # so a repair costs O(size) regardless of how narrow any one bucket is:
 # the same total work `deleteat!` already does shifting the Vector itself,
-# just paid again by the index on top. Two views on `sparse-key-and-trie`'s
+# just paid again by the index on top. Two views on the lifecycle stage's
 # brief make sharing this worthwhile: keeping it in one file means
 # `PrefixIndex` and `PatternIndex` cannot drift into two different repair
 # costs for what is, underneath, the same bucket-map shape (see

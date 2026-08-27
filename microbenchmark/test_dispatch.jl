@@ -1,5 +1,5 @@
-# The proposed API shape (README.md's "Idea 1, tightened", DECISIONS.md's
-# pattern-key-integer-hash section) argues a real `ActiveSet` should route
+# The proposed API shape (DECISIONS.md's "The pattern key's integer
+# representations" section) argues a real `ActiveSet` should route
 # a sparse atom to the folded UInt64 pattern key and a dense atom to the
 # existing value-prefix hash, using Julia's own multiple dispatch to
 # choose, exactly the shape `_unsafe_equal` itself already has

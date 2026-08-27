@@ -27,8 +27,9 @@ export DEFAULT_K, atom_key
 # (158 and 389 atoms) and gives the fold's best total per-iteration cost at
 # n=60 (0.812ns, this repository's headline number); k=2 is very slightly
 # faster at n=25 but carries a real 27.9%/11.3% collision rate, and k=8
-# never wins the fold's own k-sweep at either size. See README.md's
-# "Idea 1, tightened" k-sweep table for the full comparison.
+# never wins the fold's own k-sweep at either size. The full comparison is
+# `microbenchmark/results_pattern_key_reps_total.csv` (time) and
+# `results_pattern_key_reps_collisions.csv` (collision rate).
 const DEFAULT_K = 4
 
 

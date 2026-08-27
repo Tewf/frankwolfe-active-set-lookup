@@ -1,4 +1,4 @@
-# Idea 1 of `sparse-key-and-trie` (Mohamed's brief): key a Birkhoff atom on
+# Idea 1 of the lifecycle stage: key a Birkhoff atom on
 # *where* its nonzeros are, not on the first few flattened coordinate
 # values `lookup_methods.jl`'s `sparse_prefix` reads.
 #

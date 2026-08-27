@@ -5,8 +5,8 @@
 # every coordinate; and a `Dict` keyed only by the atom's first `k`
 # coordinates (a "prefix hash"). A full-atom `Dict` hashes first and falls
 # back to exact equality on a collision, so it is sound under the same exact
-# semantics `_unsafe_equal` gives an `Array`: see ../README.md's "Why
-# hashing is sound here" for why that matters. A prefix hash is sound for
+# semantics `_unsafe_equal` gives an `Array`: see ../METHOD.md for why
+# that matters. A prefix hash is sound for
 # the identical reason: a bucket hit is never trusted on its own, it is
 # always confirmed against the whole atom with the same `!=` the scan uses,
 # so shortening the hash can only change speed, never correctness.
