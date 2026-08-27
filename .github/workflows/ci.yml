@@ -15,13 +15,16 @@ jobs:
     # locally; measurement/run.jl and microbenchmark/run.jl themselves are
     # seconds, run_prefix.jl's full sweep took about two minutes locally,
     # run_lifecycle.jl's sweep-and-time about 30 seconds, run_pattern_key_reps.jl's
-    # about 20 seconds (see MEASURING.md). confirm-and-sustain's four
-    # correctness tests add about 20 seconds total (test_fold_quality.jl,
+    # about 20 seconds (see MEASURING.md). The four correctness tests under microbenchmark/
+    # add about 20 seconds total (test_fold_quality.jl,
     # at ~13s, is the only one of the four that isn't sub-second: it
     # generates 40,000 real Birkhoff atoms across five trials).
-    # public-ready's test/test_public_api.jl adds about 3 seconds more. 20
-    # covers a cold cache and a slower shared runner.
-    timeout-minutes: 20
+    # test/test_public_api.jl and test/test_certificate.jl add about 3
+    # seconds each. measurement/run.jl now also runs pairwise Frank-Wolfe
+    # and blended conditional gradients, whose non-lazy Birkhoff n=60 runs
+    # take 99 s and 126 s locally, so the harness step alone is about five
+    # minutes; 30 covers a cold cache and a slower shared runner.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +49,19 @@ jobs:
           test -s measurement/results.csv
           test "$(wc -l < measurement/results.csv)" -eq 4
           head -1 measurement/results.csv | grep -q "lookup_share"
+          head -1 measurement/results.csv | grep -q "certified_absent"
+          test -s measurement/results_algorithms.csv
+          test "$(wc -l < measurement/results_algorithms.csv)" -eq 10
+          head -1 measurement/results_algorithms.csv | grep -q "^algorithm,"
+
+      # The one number in the measurement that is a claim rather than a
+      # timing: the certificate never contradicted the scan, in any run of
+      # any algorithm. A nonzero `unsound` column means the argument in
+      # METHOD.md is wrong on this platform, and that has to stop the build.
+      - name: The certificate never contradicted the scan
+        run: |
+          awk -F, 'NR > 1 && $NF != 0 { print "unsound certificate in", $0; bad = 1 } END { exit bad }' measurement/results.csv
+          awk -F, 'NR > 1 && $NF != 0 { print "unsound certificate in", $0; bad = 1 } END { exit bad }' measurement/results_algorithms.csv
 
       - name: The microbenchmark sweep runs end to end
         run: |
@@ -57,7 +73,7 @@ jobs:
       # above: this confirms the prefix-hashing sweep still runs end to end
       # against whatever FrankWolfe.jl version Project.toml resolves to,
       # and that all three results_prefix_*.csv files still have the
-      # columns README.md's "Prefix hashing" section describes.
+      # columns REJECTED.md's section 2 describes.
       - name: The prefix-hashing sweep runs end to end
         run: |
           julia --project=. microbenchmark/run_prefix.jl
@@ -120,7 +136,7 @@ jobs:
       # Not a timing check, for the same reason as the other sweeps above:
       # confirms the three-representation allocation-and-time sweep still
       # runs end to end and that its four results_pattern_key_reps_*.csv
-      # files still have the columns README.md's "Idea 1, tightened"
+      # files still have the columns DECISIONS.md's "The pattern key's integer representations"
       # section describes.
       - name: The pattern-key representation sweep runs end to end
         run: |
@@ -134,7 +150,7 @@ jobs:
           head -1 microbenchmark/results_pattern_key_reps_collisions.csv | grep -q "atom_collision_rate"
           head -1 microbenchmark/results_pattern_key_reps_total.csv | grep -q "total_bytes_per_iter"
 
-      # confirm-and-sustain's own four correctness tests, TESTING.md
+      # The correctness-test stage's own four correctness tests, TESTING.md
       # documents what each one protects and what none of them cover yet.
       # All four are real pass/fail checks, like the two @test steps
       # above: every failure here means the folded pattern key actually
@@ -163,17 +179,35 @@ jobs:
       - name: The sparse/dense dispatch tests pass
         run: julia --project=. microbenchmark/test_dispatch.jl
 
-      # The comparison Mohamed asked for: whether the hand-written
+      # The comparison this stage asked for: whether the hand-written
       # incremental fold clusters, measured at narrowed bit widths against
       # both Julia's own `hash` and the birthday prediction. Prints the
       # comparison table either way; only fails if the fold is clustering.
       - name: The fold-quality-vs-birthday tests pass
         run: julia --project=. microbenchmark/test_fold_quality.jl
 
-      # public-ready's own module (src/): the public build_index/lookup_atom/
+      # The public src/ module: the public build_index/lookup_atom/
       # push_atom!/delete_atom! API, checked against a scan independently of
       # microbenchmark/'s test_*.jl files above, which test the comparisons
       # that led to this design rather than this module's own code. A real
       # pass/fail check, same as every @test step above.
       - name: The public src/ module's own tests pass
         run: julia --project=. test/test_public_api.jl
+
+      # The certificate's own tests (src/certificate.jl): that `dot` is a
+      # function of its inputs' values on this runner's BLAS, that the
+      # certificate agrees with a scan, and that an LMO vertex never reaches
+      # the fall-back except on a tie. A real pass/fail check.
+      - name: The certificate tests pass
+        run: julia --project=. test/test_certificate.jl
+
+      # Not a timing check, like the other sweeps: confirms the certificate
+      # sweep still runs against whatever FrankWolfe.jl version resolves,
+      # and that both results files keep the columns README.md describes.
+      - name: The certificate sweep runs end to end
+        run: |
+          julia --project=. microbenchmark/run_certificate.jl
+          test -s microbenchmark/results_certificate_timing.csv
+          test -s microbenchmark/results_certificate_total.csv
+          head -1 microbenchmark/results_certificate_timing.csv | grep -q "lookup_ns"
+          head -1 microbenchmark/results_certificate_total.csv | grep -q "total_ns_per_iter"
