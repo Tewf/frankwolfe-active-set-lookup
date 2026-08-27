@@ -1,0 +1,13 @@
+alphabet,real_size,structure,lookup_ns,insert_ns,delete_repair_ns,total_ns_per_iter
+birkhoff_n25,158,certificate,10.51,0.0,0.0,0.2089
+birkhoff_n25,158,pattern_k4,28.02,35.29,394.39,1.3566
+birkhoff_n25,158,certificate_values,79.08,0.0,0.0,1.5714
+birkhoff_n25,158,scan,777.61,3.75,0.0,15.5257
+birkhoff_n60,389,certificate,10.26,0.0,0.0,0.1996
+birkhoff_n60,389,pattern_k4,27.38,23.6,1142.58,1.0486
+birkhoff_n60,389,certificate_values,160.48,0.0,0.0,3.1209
+birkhoff_n60,389,scan,2041.8,1.85,0.0,39.7449
+linf_box_d3000,241,certificate,10.19,0.0,0.0,0.163
+linf_box_d3000,241,certificate_values,104.51,0.0,0.0,1.6719
+linf_box_d3000,241,prefix_k8,41.8,150.23,382.87,3.072
+linf_box_d3000,241,scan,322.14,0.54,0.0,5.1622
