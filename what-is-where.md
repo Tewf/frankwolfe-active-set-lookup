@@ -4,8 +4,13 @@
 Project.toml               dependencies: FrankWolfe, TimerOutputs, LinearAlgebra
 Manifest.toml               the exact resolved versions; gitignored, see .gitignore
 src/                        the method itself, usable without reading a benchmark
-  ActiveSetLookup.jl          the module: includes the three files below and
+  ActiveSetLookup.jl          the module: includes the four files below and
                                re-exports their public names in one place
+  certificate.jl              the lookup that does not search: certified_lookup
+                               proves the LMO vertex absent from two inner
+                               products the FW step already holds, compares it
+                               with the best atom on a tie, and searches only
+                               on a tie between distinct atoms
   keys.jl                     computing a key from an atom: the folded sparse
                                pattern key, the dense value key, DEFAULT_K=4
   confirm.jl                  the confirmation step: exact equality, mirroring
@@ -21,14 +26,24 @@ test/                       tests for src/, independent of microbenchmark/'s
   test_public_api.jl          @test: build_index dispatch, lookup-vs-scan
                                equivalence, push_atom!/delete_atom! lifecycle,
                                the signed-zero fix, a forced fold collision
-measurement/                a real BPCG run, instrumented, on problems where the
+  test_certificate.jl         @test: dot is a function of values (equal inputs,
+                               either order, any alignment); certified_lookup
+                               agrees with a scan; an LMO vertex never reaches
+                               the fall-back except on a tie; ties, duplicates,
+                               NaN/Inf gradients, signed zero
+measurement/                real runs, instrumented, on problems where the
                              active set grows
   instrumentation.jl          times, counts, and counts hits for find_atom without
-                               editing FrankWolfe.jl
+                               editing FrankWolfe.jl; RecordingLMO keeps the
+                               gradient so the certificate can be tallied at
+                               every call and checked against the scan
   problems.jl                  the three problems: two Birkhoff sizes, one L∞-ball
-  run.jl                        runs all three, writes results.csv
-  results.csv                    max/mean active-set size, calls, hits, lookup share,
-                                  per problem
+  run.jl                        runs BPCG, PFW, lazy PFW and BCG on all three,
+                                 writes the two files below
+  results.csv                    BPCG: max/mean active-set size, calls, hits,
+                                  deletions, lookup share, certificate tally;
+                                  the per-iteration rates the sweeps weight by
+  results_algorithms.csv         the same columns for PFW, lazy PFW and BCG
 microbenchmark/              the lookup itself, isolated from any solver
   lookup_methods.jl            linear scan, full-atom Dict, and prefix-hash lookup
                                 (dense and sparse-atom variants), copied from find_atom
@@ -81,9 +96,20 @@ microbenchmark/              the lookup itself, isolated from any solver
                                    the structure still answers correctly; confirms the
                                    NTuple key has no equivalent hazard; cross-checks all
                                    three representations agree with each other
+  certificate.jl                  the research copy of the absence certificate, kept
+                                   apart from src/ like every other structure here
+  run_certificate.jl              times the certificate on a miss, a hit, a forced
+                                   tie and the fingerprint walk, beside the pattern
+                                   key, the prefix hash and the scan on the same
+                                   atoms, at the three real sizes; writes the two
+                                   results files below
+  results_certificate_timing.csv    ns per lookup, per structure and case
+  results_certificate_total.csv     per-iteration total at the real call rates; the
+                                     certificate's insert and repair cost is zero,
+                                     the baselines' are taken from their own sweeps
   test_atom_generators.jl         real-atom generators for all three alphabets, plus the
                                    sparse/dense dispatch (route_build/lookup/scan) shared
-                                   by the four confirm-and-sustain test files below
+                                   by the four correctness-test stage test files below
   test_equivalence.jl             @test: property test, structure vs. scan, seeds x sizes
                                    (0-500) x k (2/4/8/16) x alphabet, plus duplicates
   test_lifecycle.jl               @test: randomised insert/delete sequences, checked

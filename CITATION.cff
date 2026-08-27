@@ -2,17 +2,20 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 title: "frankwolfe-active-set-lookup"
 abstract: >-
-  A measurement of whether hashing the active set beats a linear scan in
-  FrankWolfe.jl, which is the open question of its issue #244 and has stood
-  unanswered since 2021. The lookup is exact rather than approximate, so hashing
-  is sound; the cost is one scan of the active set per iteration, and it is
-  reached from the blended pairwise algorithm but not from away-step Frank-Wolfe,
-  which supplies the index itself. Whether that costs anything is an empirical
-  question about how large the active set actually grows, and this repository
-  answers it with a profile before proposing any change upstream.
+  An answer to FrankWolfe.jl issue #244, open since 2021: does anything beat
+  the linear scan find_atom uses to decide whether the LMO's vertex is already
+  in the active set? Two answers, both exact. Wherever the caller is a
+  Frank-Wolfe step it already holds the gradient's inner product with the new
+  vertex and with the active set's best atom, and the first being strictly
+  smaller proves the vertex absent in one comparison, with no data structure at
+  all; every call the measured BPCG runs made was decided that way, and the
+  step rule guarantees it in exact arithmetic. For a caller that has only the
+  atom, a folded structural hash with exact confirmation beats the scan at
+  every measured active-set size. Every number is measured on real runs before
+  anything is proposed upstream.
 type: software
-version: 0.1.0
-date-released: "2026-08-24"
+version: 0.2.0
+date-released: "2026-08-27"
 license: MIT
 repository-code: "https://github.com/Tewf/frankwolfe-active-set-lookup"
 authors:

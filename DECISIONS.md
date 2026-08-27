@@ -48,15 +48,14 @@ assertions, all passing.
 within a day of trying the idea, and proposing a hashed active set without
 mentioning it would be proposing a silent bug.
 
-## sparse-key-and-trie: what changed, and what is still a judgement call
+## The sparse-pattern key and the trie: what changed, and what is still a judgement call
 
 The brief for this stage pointed at the prefix hash's weak spot directly: on Birkhoff
 atoms, `k=8` gives 9 buckets for 389 atoms, and it wins despite the key being
 nearly useless, not because of it. Two structures were built to fix that, and
 a gap in every measurement so far (lookup only, never insert or deletion) was
 closed at the same time. This section is the reasoning behind the numbers
-README.md's "Lookup is not the whole cost" reports; treat it as the audit
-trail for that section, not a restatement of it.
+`microbenchmark/results_lifecycle_total.csv` reports.
 
 **Idea 1, the sparse-pattern key, is a clean, low-risk win for Birkhoff-like
 atoms and should be the headline recommendation for them.** It measures
@@ -103,8 +102,7 @@ operation than the raw `deleteat!` shift it sits alongside
 (`microbenchmark/results_lifecycle_timing.csv`'s `raw_deleteat` rows), but at
 a rate this low it cannot move the total ranking. **This is scoped to BPCG
 with `lazy=true` run to `epsilon=1e-9`, the only algorithm actually run
-end to end in this repository** (see "Open questions" below, PFW and BCG
-were only found by grep, never run). A workload with more frequent drop
+end to end in this repository** (PFW and BCG were run later; see the certificate section below). A workload with more frequent drop
 steps, a looser tolerance, or a different algorithm could see repair cost
 matter far more; nothing here rules that out, and nothing here measured it.
 
@@ -130,7 +128,7 @@ separation of concerns, the way `lookup_methods.jl` already keeps its scan,
 full-`Dict`, and prefix-hash lookups (plus their sparse-atom variants) in
 one file. Flagging it here rather than silently letting it stand.
 
-## pattern-key-integer-hash: what changed, and what is still a judgement call
+## The pattern key's integer representations: what changed, and what is still a judgement call
 
 The brief this time pointed at the sparse-pattern key's own weak
 spot: it is a `Vector{Int}`, so every lookup and every insert allocates
@@ -139,8 +137,7 @@ built two allocation-free representations of the identical key (`UInt64`,
 `NTuple{K,Int}`); `microbenchmark/run_pattern_key_reps.jl` measured all
 three the same way `run_lifecycle.jl` measured Idea 1 against the flat
 prefix hash. This section is the reasoning and the caveats behind the
-numbers README.md's "Idea 1, tightened" reports; treat it as the audit
-trail, not a restatement.
+numbers `microbenchmark/results_pattern_key_reps_total.csv` reports.
 
 **The fold pays off, cleanly, and this is not a marginal call.** Zero
 bytes and zero allocations per lookup for both new representations, at
@@ -238,8 +235,8 @@ resize boundary landing inside the differenced atom-count range
 specifically for `NTuple{4,Int}`'s 32-byte key width and not for
 `NTuple{2,Int}`'s 16 or `NTuple{8,Int}`'s 64. This was not chased further
 (would need inspecting `Dict`'s internal table size across the exact
-insert sequence, not just timing it), so README.md's k-sweep table marks
-that one figure rather than either hiding it or repeating a wrong
+insert sequence, not just timing it), so `microbenchmark/results_pattern_key_reps_total.csv` carries
+that one figure as measured rather than either hiding it or repeating a wrong
 conclusion the way trusting it uncritically would.
 
 **A file-length judgement call, same shape as `hash_trie.jl`'s above:**
@@ -261,7 +258,7 @@ branch does not know why `run_lifecycle.jl` itself was not flagged when
 it was added, only that the same reasoning that exempted it applies here
 too.
 
-## public-ready: what changed, and what is still a judgement call
+## The public src/ module: what changed, and what is still a judgement call
 
 This branch's brief was to turn a private research harness into something
 a stranger could read and use, without changing any measured number. It
@@ -331,8 +328,102 @@ than a folder of four short files, since a reader deciding whether to
 re-propose one of these needs to compare it against the others on the
 same page, not follow four links to do it.
 
+## certificate: what changed, and what is still a judgement call
+
+The brief this time was open: the folded key was measured and shipped, and
+the question was whether a better method existed, hash or not. This
+section is the audit trail for the answer `README.md` now leads with.
+
+**The finding came from reading the call site, not from a data structure.**
+Every earlier stage took `find_atom`'s question as given and made the
+search faster. Reading `blended_pairwise.jl` around the one BPCG call
+showed the step already held `<g, v>` and the active set's minimum
+`<g, s>`, and that the branch is entered only when the first is smaller,
+which is a proof of absence. The zero hits `measurement/results.csv` had
+recorded from the start were that theorem showing up as data; nobody had
+asked why. The literature sweep (`references.md`) found the observation
+stated nowhere, which is a statement about what was searched.
+
+**Ship the certificate as the headline and keep the index, rather than
+replace one by the other.** The certificate needs a caller that holds the
+gradient's products, and every algorithm in `FrankWolfe.jl` that reaches
+`find_atom` without an index does. A caller that has only the atom does
+not, and for it the index is still the measured best. Both are in `src/`,
+the index is the certificate's natural `fallback` on a tie, and neither
+file imports the other.
+
+**API shape: mirror `find_atom`.** `certified_lookup` returns a position
+or -1, takes the active set's own `Vector`, and takes the two products as
+plain numbers rather than a gradient and an argmin function, so the
+upstream change at each call site is one line and the module never
+recomputes what the step already has. The fingerprint form is a second
+method on the same name because it answers the same question from a
+different caller state, and `REJECTED.md` section 6 says why it is not the
+headline.
+
+**The floating-point assumption is stated and tested, not assumed.** The
+certificate compares `dot(g, v)` with `dot(g, a)` values and needs equal
+atoms to give equal Float64s. That was checked empirically on this
+machine's OpenBLAS and SparseArrays (`test/test_certificate.jl`, 2,400
+cases, both argument orders since the package writes them both ways), and
+CI runs the same test on its own runner. It is a property of deterministic
+kernels, not of IEEE arithmetic in general; a BLAS that reorders a
+reduction by thread count would break it, and the fallback direction (a
+failed comparison searches) means the failure mode would be a duplicate
+atom, never a wrong index.
+
+**The BPCG theorem's scope.** It needs `sparsity_control >= 1` (the default
+is 2, and the lazy and non-lazy branches were both checked); it is exact
+arithmetic, and the certificate is the guard that makes it safe in floating
+point. `inverted` was zero in every run, meaning the LMO vertex never scored
+above the active minimum even in floating point on these problems.
+
+**Pairwise Frank-Wolfe was measured for the lookup, not end to end with
+the certificate in place.** The 2 ms figure in `README.md` is 20,001 calls
+priced at this session's per-call costs; an end-to-end number needs
+`pairwise.jl` changed, which is the upstream pull request's job, not this
+repository's.
+
+**`results.csv` kept its shape; the other algorithms got their own file.**
+`run_lifecycle.jl` and `run_pattern_key_reps.jl` read one row per problem
+from `results.csv` by name, so the certificate columns were appended and
+PFW, lazy PFW and BCG went to `results_algorithms.csv`, rather than
+breaking two readers to keep one file.
+
+**The harness's `RecordingLMO` copies the direction on every LMO call.**
+That copy sits inside the timed total and outside the timed scan, so it
+can only make every run's `lookup_share` slightly smaller, equally. The
+BPCG counts came back identical to the earlier session's (159/389/240
+calls, 158/389/241 atoms); the shares moved from 0.02-0.14% to 0.02-0.07%,
+inside the noise `MEASURING.md` describes.
+
+**BCG's index discard is reported, not fixed.** `lp_separation_oracle`
+returns an active atom without its position and the step scans for it;
+that is 98% of BCG's lookups on Birkhoff. It is a one-line upstream change
+and belongs in the same pull request, but nothing here builds it.
+
+**A file-length call, same shape as the earlier ones.**
+`microbenchmark/run_certificate.jl` is one sweep script like the others,
+past the ~80-logical-line trigger for the same reason `run_lifecycle.jl`
+was: one coherent sweep whose timing and its weighting by real rates would
+otherwise share state across a file boundary for no separation of
+concerns.
+
 ## Open questions, unresolved by this repository
 
+- **Pairwise Frank-Wolfe end to end.** The lookup share (6.4% at Birkhoff
+  n=60) and the per-call costs are measured; the run with the certificate
+  in place is not, because it needs `pairwise.jl` to keep the minimum
+  `active_set_argminmax` already computes. That is the first thing a pull
+  request should measure.
+- **`sparsity_control` below 1.** The BPCG argument needs it at or above
+  1; the default is 2 and nothing here checks what the package does with a
+  smaller value, or whether any caller uses one.
+- **Determinism of `dot` on other BLAS builds.** Checked on this machine's
+  OpenBLAS and on CI's runner, both single-configuration. A build that
+  splits a reduction across threads by size could give equal atoms
+  different sums; the consequence would be a duplicate atom, and
+  `test/test_certificate.jl` is the check to run on any new platform.
 - **Choosing `k`.** `k=8` was the smallest prefix that cleared every real
   alphabet's own observed maximum in `microbenchmark/run_prefix.jl`'s
   sweep, not a value derived from a formula; a polytope with atoms more
@@ -348,18 +439,17 @@ same page, not follow four links to do it.
   polytope whose vertices are more confusable than a permutation matrix's
   flattened prefix (100% bucket collision at `k=8`, and the prefix hash
   still won) has not been found or ruled out.
-- **PFW and BCG were found, not measured.** `references.md` and the draft
-  above name four more call sites than the task's own framing listed
-  (`pairwise.jl`, `blended_cg.jl`, and two generic drivers); only BPCG was
-  run end to end. Worth a second harness pass if this becomes a live PR.
-  This now also scopes the deletion-rate finding below: the 2/1/0
-  deletions counted are BPCG's, at `lazy=true` and `epsilon=1e-9`, not a
-  general property of these problems under every algorithm or tolerance.
-- **README.fr.md was rewritten by `public-ready`, not by a native
+- **The deletion-rate finding is BPCG's.** The 2/1/0 deletions counted
+  are BPCG's at `lazy=true` and `epsilon=1e-9`; `results_algorithms.csv`
+  now shows BCG on the L-infinity ball removing 299 atoms in 14,757
+  iterations, so a workload where an index's repair cost matters does
+  exist. The certificate has no repair cost, which is one more reason it
+  leads.
+- **README.fr.md was rewritten by the public-module stage, not by a native
   speaker.** The two-branches-behind gap this item used to describe
   (the plain `k=8` prefix-hash headline, untranslated "Prefix hashing"
   and "Lookup is not the whole cost" sections) no longer exists:
-  `public-ready` replaced `README.fr.md` wholesale, following the new
+  The public-module stage replaced `README.fr.md` wholesale, following the new
   `README.md`'s own shortened structure rather than translating the old
   one section by section. What is still open is quality, not staleness:
   the translation is this branch's own French, flagged at the top of the

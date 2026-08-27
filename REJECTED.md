@@ -7,6 +7,12 @@ given so a claim can be re-checked rather than taken on faith. Longer than
 80 lines because each of four rejected methods needs its own number, not
 just its name, to actually be useful to the next person who thinks of it.
 
+The four methods below were refused against the folded sparse-pattern
+key. That key is itself now second to the absence certificate wherever
+the caller is a Frank-Wolfe step (`METHOD.md`), and stays the answer for a
+caller that has only the atom; sections 5 and 6 are what was weighed
+against the certificate.
+
 ## The first answer this repository gave was wrong, and here is why
 
 Before any of the four methods below, this repository's very first draft
@@ -117,8 +123,41 @@ comfortable fixing `k` once per index construction and carrying a `Val`
 from there, this representation is a legitimate, slightly faster
 alternative to the shipped `UInt64` fold, not a worse idea.
 
+## 5. An identity supplied by the oracle
+
+What the two implementations that solve this elsewhere do
+(`references.md`): `copt` has each LMO return a hashable *vertex
+representation* (`(sign, index)` for the L1 ball) and keys the active set
+on it; `linearFW` builds a string from each 0-1 atom and maps it to its
+position. The field's name for it is hash consing: one canonical identity
+per distinct value, so equality becomes an identity test. It is exact and
+O(1), and it was not measured here because there was nothing to gain by
+measuring it: a dictionary probe on a small key costs what the folded key's
+probe costs (27-42 ns per miss in `results_certificate_timing.csv`), and
+the certificate decides a miss in one comparison with nothing to probe,
+insert or repair. What decided against proposing it upstream is the size
+of the change relative to that: every oracle in `FrankWolfe.jl` would have
+to return a key beside its vertex, and the pairwise variant would only work
+for oracles that do (which is exactly `copt`'s restriction), while the
+certificate touches one line per call site and asks nothing of any oracle.
+Where an oracle already supplies an identity, it composes: it is a
+`fallback` for the certificate's tie, the same slot the folded key fills.
+
+## 6. The fingerprint walk
+
+The second method in `src/certificate.jl`: keep every `dot(g, a)` from the
+argminmax loop and, on a lookup, compare only the atoms whose value equals
+`dot(g, v)`. No argmin needed, no index, and one Float64 comparison per
+atom instead of one `==`. Measured on a miss at 79.1, 160.5 and 104.5 ns at
+the three real sizes (`results_certificate_timing.csv`): cheaper than the
+scan by 3-13x and free of maintenance, but slower than the index's probe
+and an order of magnitude slower than the certificate's one comparison,
+because it walks the whole set. It is shipped, not headlined: the case
+for it is a caller that has the values and no argmin, and no call site in
+`FrankWolfe.jl` is in that position.
+
 ## Reading further
 
-The method that was kept, and why it is correct: `METHOD.md`. The number:
-`README.md`. Every judgement call, including open questions these
-rejections do not close: `DECISIONS.md`.
+The methods that were kept, and why they are correct: `METHOD.md`. The
+numbers: `README.md`. Every judgement call, including open questions
+these rejections do not close: `DECISIONS.md`.

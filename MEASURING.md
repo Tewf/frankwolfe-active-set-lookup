@@ -10,10 +10,10 @@ this repository was taken on this laptop **while it was not idle**: at the
 time of the runs behind `measurement/results.csv` and
 `microbenchmark/results.csv`, `uptime` reported a load average of **2.36**,
 a Brave browser with several renderer processes was open, and two other
-Claude Code agents were building unrelated repositories on the same machine.
+unrelated builds were running on the same machine.
 No step was taken to quiet the machine before measuring, because none of
 tensor-rank-toolkit's "one core, otherwise quiet" protocol was practical to
-reproduce here without stopping work the other agents were mid-way through.
+reproduce here without stopping the builds that were mid-way through.
 This is the disclosed exception `tensor-rank-toolkit/MEASURING.md` asks for
 in place of a silent one: **the numbers here carry more noise than a single
 quiet core would give**, and the one place that noise visibly shows
@@ -29,16 +29,32 @@ specific bias it uncovered are in "Index construction can bias whichever
 measurement runs right after it," below.
 
 The run behind `microbenchmark/results_pattern_key_reps_*.csv`
-(`pattern-key-integer-hash`) was taken on the same laptop, also not idle:
+(the representation stage) was taken on the same laptop, also not idle:
 `uptime` reported a load average of **1.00, 0.63, 0.61** immediately
 before the run started. `Random.seed!(4)` (see `run_pattern_key_reps.jl`'s
 own header) makes the exact atom sequence reproducible across runs on the
 same machine regardless of that load, which is how the `NTuple{4,Int}`
-insert-timing anomaly noted in `README.md`'s k-sweep table and
-`DECISIONS.md` was confirmed to hold at the same magnitude (177.65 ns for
+insert-timing anomaly noted in `DECISIONS.md` was confirmed to hold at the same magnitude (177.65 ns for
 Birkhoff n=25) across two independent full runs, ruling out ordinary
 timer noise as its explanation even though the machine itself was not
 quiet for either run.
+
+The runs behind `measurement/results.csv`'s certificate columns,
+`measurement/results_algorithms.csv` and
+`microbenchmark/results_certificate_*.csv` were taken on 2026-08-27 on the
+same laptop, load average **0.9-1.1** with a browser open and nothing else
+computing. Two things about them belong here. First, the harness's
+`RecordingLMO` copies the direction on every LMO call; that copy is inside
+the timed total and outside the timed scan, so it can only shrink every
+run's `lookup_share`, and equally. Second, `run_certificate.jl` re-times
+the folded key, the prefix hash and the scan on its own atoms in the same
+session as the certificate, and those numbers differ from the same
+structures' committed sweeps (28.0 ns against 15.6 ns for the folded key's
+miss at n=60): that gap is the session-to-session noise this file already
+warns about, and it is why every comparison with the certificate is made
+within one session rather than against a committed number. Non-lazy
+pairwise Frank-Wolfe and blended conditional gradients on Birkhoff n=60
+took 99 s and 126 s; the other ten runs took under six seconds each.
 
 ## Fastest of five, not the mean
 

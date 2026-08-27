@@ -7,91 +7,172 @@
 
 Suit la structure de `README.md`, donc dépasse aussi les 80 lignes pour
 la même raison : la réponse, un exemple utilisable et les commandes de
-reproduction tiennent ensemble sur une seule page.
+reproduction tiennent ensemble sur une seule page. En cas de doute, la
+version anglaise fait foi.
 
-**Cette traduction attend une relecture par un locuteur natif** : elle
-suit la nouvelle structure de `README.md` mais n'a pas eu la même
-relecture attentive que la version anglaise. En cas de doute, la version
-anglaise fait foi.
-
-**Oui : une clé de motif creux repliée bat le balayage linéaire
-`find_atom` de `FrankWolfe.jl`, aux tailles d'ensemble actif que des
-exécutions réelles atteignent effectivement : 0,812 ns par itération
-(recherche, insertion, et réparation occasionnelle après suppression,
-pondérées par leur fréquence réelle) contre 57,49 ns pour le balayage, à
-Birkhoff n=60 (k=4, la valeur par défaut).** Ceci répond à
+**Le sommet que l'oracle linéaire (LMO) vient de renvoyer n'est pas dans
+l'ensemble actif dès que `<g,v> < <g,s>`, où `s` est l'atome actif que le
+pas a déjà trouvé meilleur pour le gradient `g`. Cette seule comparaison
+remplace le balayage linéaire de `find_atom` à chaque site d'appel de
+`FrankWolfe.jl`, en 10 ns environ contre 2 042 ns pour le balayage sur
+Birkhoff n=60, sans index à construire, à alimenter ni à réparer ; une
+égalité se règle par une comparaison avec `s`. Sur des exécutions réelles
+elle a tranché chaque appel : 788 sur 788 en gradient conditionnel par
+paires mélangé (BPCG), 20 001 sur 20 001 en Frank-Wolfe par paires (PFW)
+sur Birkhoff n=60, où l'ensemble actif atteint 9 368 atomes et où le
+balayage coûte 6,4 % de l'exécution.** Pour un appelant qui ne dispose que
+de l'atome, une clé structurelle repliée avec confirmation exacte bat le
+balayage à toutes les tailles mesurées et reste ici comme solution de
+repli. Ceci répond à
 [`ZIB-IOL/FrankWolfe.jl#244`](https://github.com/ZIB-IOL/FrankWolfe.jl/issues/244),
 ouverte depuis 2021 sans réponse. Plusieurs retournements ont été
-nécessaires pour y arriver, dont un premier brouillon concluant
-l'inverse ; `REJECTED.md` (en anglais) dit ce qui a été essayé puis
-refusé, chiffres à l'appui.
+nécessaires, dont un premier brouillon concluant que hacher ne sert à rien
+et un deuxième qui s'arrêtait au hachage ; `REJECTED.md` (en anglais) dit
+ce qui a été essayé puis refusé, chiffres à l'appui.
 
 ## La méthode, en trois phrases
 
-Pour un atome creux (une matrice de permutation du polytope de Birkhoff,
-par exemple), les valeurs valent toutes 1,0 et ne portent aucune
-information : la clé hache donc les `k` premières *positions* stockées,
-repliées en un seul `UInt64`. Pour un atome dense (un coin de boîte de la
-boule L∞), il n'y a pas de structure creuse à lire : la clé hache alors
-les `k` premières *valeurs* de coordonnées. Dans les deux cas, la clé ne
-fait que désigner une case : chaque candidat qu'elle contient est vérifié
-contre l'atome entier par égalité exacte avant d'être accepté, si bien
-qu'une collision coûte une comparaison et jamais une mauvaise réponse.
-`METHOD.md` (en anglais) donne l'argument complet, y compris une vraie
-faille de correction autour du signe de zéro et comment elle est fermée.
+Tout pas de Frank-Wolfe qui maintient un ensemble actif commence par
+minimiser `<g, a>` sur les atomes actifs `a` (c'est ainsi qu'il trouve ses
+sommets local et d'éloignement), puis demande au LMO le sommet `v` et
+calcule `<g, v>` pour l'écart dual ; si `v` était déjà actif, `<g, v>`
+serait l'une des valeurs que l'on vient de minimiser, donc `<g, v> < <g, s>`
+prouve qu'il ne l'est pas. Quand la comparaison échoue, `v` fait égalité
+avec le meilleur atome `s`, et soit `v == s`, ce qu'une comparaison exacte
+règle (c'est le cas de Frank-Wolfe par paires, où le LMO renvoie
+couramment un sommet déjà actif), soit `v` fait égalité avec un *autre*
+atome, seul cas où l'on cherche vraiment, de probabilité nulle pour un
+gradient à valeurs réelles. En BPCG le pas de Frank-Wolfe n'est pris que si
+`v` bat tout l'ensemble actif, donc le balayage n'y a jamais été
+nécessaire en arithmétique exacte, et le certificat est la façon sûre en
+virgule flottante de s'en passer ; `METHOD.md` (en anglais) donne les deux
+arguments et ce sur quoi ils reposent.
 
-## Utilisation
+## L'utiliser
 
 ```julia
 include("src/ActiveSetLookup.jl")
 using .ActiveSetLookup
 
-# atoms est un Vector déjà possédé par l'appelant.
+# Dans un pas. `atoms` est le Vector de l'ensemble actif, `g` le gradient ;
+# le pas vient de minimiser dot(g, a) sur atoms (active_set_argminmax), il
+# tient donc `best` et `best_value` ; le LMO a renvoyé `v`, et dot(g, v) a
+# été calculé pour l'écart dual.
+pos = certified_lookup(atoms, v, dot(g, v), best, best_value)  # -1 si absent, comme find_atom
+
+# Un appelant qui n'a que l'atome garde un index à la place.
 index = build_index(atoms)              # k vaut DEFAULT_K = 4 par défaut
-pos = lookup_atom(index, atoms, query)  # -1 si absent, comme find_atom
+pos = lookup_atom(index, atoms, query)  # -1 si absent
 push_atom!(index, atoms, new_atom)      # garde atoms et index synchronisés
 delete_atom!(index, atoms, pos)         # répare l'index après deleteat!
+
+# L'index est aussi le repli naturel pour la rare égalité du certificat.
+pos = certified_lookup(atoms, v, dot(g, v), best, best_value;
+                       fallback=(a, q) -> lookup_atom(index, a, q))
 ```
 
-`k` est un simple mot-clé partout (`build_index(atoms; k=8)`), jamais un
-paramètre de type figé à la compilation. Le module tient en trois
-petits fichiers, `src/keys.jl`, `src/confirm.jl`, `src/index.jl`, chacun
-lisible seul.
+`certified_lookup` ne sait rien du type de l'atome : le même appel sert
+aux matrices de permutation, aux coins de boîte et à tout ce que `dot`
+accepte. L'index choisit sa clé selon le type des atomes (`SparseMatrixCSC`
+et `SparseVector` vers une clé sur les *positions* stockées, un `Array`
+dense vers une clé sur les premières *valeurs*), et chaque candidat d'une
+case est confirmé contre l'atome entier avant d'être accepté, si bien
+qu'une collision coûte une comparaison et jamais une mauvaise réponse. Le
+module tient en quatre petits fichiers, `src/certificate.jl`,
+`src/keys.jl`, `src/confirm.jl`, `src/index.jl`, chacun lisible seul.
 
 ## Ce qui a été mesuré
 
-`measurement/` exécute BPCG (`lazy=true`) sur trois problèmes réels ;
-`microbenchmark/` chiffre chaque structure candidate séparément
-(recherche, insertion, réparation après suppression), puis les pondère
-par le taux d'appel réel de ces trois exécutions. La clé de motif creux
-l'emporte sur les deux tailles de Birkhoff (2,72 ns à 158 atomes, 1,88 ns
-à 389, avant le repliement `UInt64` sans allocation qui accélère encore) ;
-le hachage de préfixe de valeurs existant reste la bonne réponse pour la
-boule L∞ (3,31 ns à 241 atomes). Le tableau complet et les trois
-exécutions réelles sont dans `README.md`.
+`measurement/` exécute quatre algorithmes sur trois problèmes,
+instrumentés sans modifier `FrankWolfe.jl` : à chaque appel de
+`find_atom` il note ce que le balayage a répondu et, pour le sommet du LMO,
+ce que le certificat aurait décidé, puis vérifie que les deux concordent.
+
+| Algorithme | Problème | Ensemble actif max | Appels `find_atom` | Trouvés | Part du balayage | Absence certifiée | Égalité, `v == s` | Égalité, recherche |
+|---|---|---|---|---|---|---|---|---|
+| BPCG paresseux | Birkhoff n=25 | 158 | 159 | 0 | 0,07 % | 159 | 0 | 0 |
+| BPCG paresseux | Birkhoff n=60 | 389 | 389 | 0 | 0,06 % | 389 | 0 | 0 |
+| BPCG paresseux | Boule L-inf d=3 000 | 241 | 240 | 0 | 0,02 % | 240 | 0 | 0 |
+| PFW | Birkhoff n=25 | 2 463 | 8 001 | 5 535 | 6,05 % | 2 466 | 5 535 | 0 |
+| PFW | Birkhoff n=60 | 9 368 | 20 001 | 10 628 | 6,41 % | 9 373 | 10 628 | 0 |
+| PFW | Boule L-inf d=3 000 | 2 613 | 15 001 | 12 387 | 0,81 % | 2 614 | 12 387 | 0 |
+| PFW paresseux | Birkhoff n=25 | 181 | 204 | 0 | 0,17 % | 204 | 0 | 0 |
+| PFW paresseux | Birkhoff n=60 | 576 | 598 | 0 | 0,12 % | 598 | 0 | 0 |
+| PFW paresseux | Boule L-inf d=3 000 | 295 | 323 | 0 | 0,03 % | 323 | 0 | 0 |
+| BCG | Birkhoff n=25 | 148 | 7 948 | 7 800 | 0,14 % | 148 | 38 | 0 |
+| BCG | Birkhoff n=60 | 623 | 19 988 | 19 365 | 0,14 % | 623 | 126 | 0 |
+| BCG | Boule L-inf d=3 000 | 348 | 1 827 | 1 360 | 0,06 % | 467 | 17 | 0 |
+
+(`measurement/results.csv`, `measurement/results_algorithms.csv` ; 8 000,
+20 000 et 15 000 itérations, `epsilon=1e-9`.) Le certificat n'a jamais
+contredit le balayage, et aucun appel n'a eu besoin d'une recherche. Trois
+choses que la mesure BPCG seule ne pouvait pas dire : le balayage est un
+vrai coût en Frank-Wolfe par paires non paresseux, dont l'ensemble actif
+grossit jusqu'à des milliers d'atomes (6,4 % d'une exécution de 99 s à
+n=60) ; chacun de ses 53 à 83 % d'appels trouvés était le meilleur atome
+lui-même, qu'une comparaison suffit à reconnaître ; et les appels de BCG
+concernent surtout un atome qu'il vient de prendre dans son propre
+ensemble actif (`lp_separation_oracle` renvoie l'atome sans sa position),
+ce qui est un gaspillage distinct, propre à l'index.
+
+Par appel, sur les mêmes atomes dans la même session
+(`microbenchmark/results_certificate_timing.csv`, ns) :
+
+| Taille | Cas | Certificat | Clé repliée / hachage de préfixe | Balayage |
+|---|---|---|---|---|
+| Birkhoff n=25, 158 atomes | absent | 10,5 | 28,0 | 777,6 |
+| | présent (meilleur atome) | 87,4 | 106,9 | 200,3 |
+| Birkhoff n=60, 389 atomes | absent | 10,3 | 27,4 | 2 041,8 |
+| | présent (meilleur atome) | 177,8 | 196,3 | 436,9 |
+| Boule L-inf d=3 000, 241 atomes | absent | 10,2 | 41,8 | 322,1 |
+| | présent (meilleur atome) | 1 392,7 | 1 448,1 | 1 619,9 |
+
+Un absent coûte au certificat une comparaison de Float64 (les 10 ns sont
+le plancher du chronomètre pour un appel, le même pour chaque colonne) ; un
+présent coûte à chaque méthode l'unique comparaison exacte, soit 1,4 µs
+sur un atome dense de 3 000 coordonnées. Une égalité forcée avec un atome
+distinct retombe sur le balayage et en coûte le prix (798, 2 091 et
+357 ns), et aucune exécution réelle n'en a produit. Pondéré par les taux
+d'appel réels de BPCG, le coût total par itération est de 0,16 à 0,21 ns
+pour le certificat contre 1,0 à 3,1 ns pour l'index (ses coûts
+d'insertion et de réparation venant de sa propre campagne) et 5 à 40 ns
+pour le balayage (`results_certificate_total.csv`). Pour Frank-Wolfe par
+paires sur Birkhoff n=60, les 6,35 s que le balayage a passées sur 20 001
+appels deviennent, aux coûts par appel ci-dessus, environ 2 ms : ce chiffre
+est une arithmétique sur des parties mesurées, non une exécution de bout
+en bout, car l'obtenir suppose de modifier `pairwise.jl` lui-même.
 
 ## Reproduire les mesures
 
+Avec Julia 1.10 ou plus récent, depuis la racine du dépôt :
+
 ```
-source ~/miniforge3/etc/profile.d/conda.sh && conda activate frankwolfe
-julia --project=. measurement/run.jl
-julia --project=. microbenchmark/run.jl
-julia --project=. microbenchmark/run_prefix.jl
-julia --project=. microbenchmark/run_lifecycle.jl
-julia --project=. microbenchmark/run_pattern_key_reps.jl
-julia --project=. test/test_public_api.jl
+julia --project=. -e 'using Pkg; Pkg.instantiate()'
+julia --project=. measurement/run.jl                     # results.csv, results_algorithms.csv
+julia --project=. microbenchmark/run_certificate.jl      # le certificat face à la clé, au hachage et au balayage
+julia --project=. microbenchmark/run.jl                  # la campagne hachage-complet-contre-balayage
+julia --project=. microbenchmark/run_prefix.jl           # la campagne du hachage de préfixe
+julia --project=. microbenchmark/run_lifecycle.jl        # clé de motif creux + trie, cycle de vie complet
+julia --project=. microbenchmark/run_pattern_key_reps.jl # représentations UInt64/NTuple/Vector{Int}
+julia --project=. test/test_certificate.jl               # les tests de correction du certificat
+julia --project=. test/test_public_api.jl                # les tests de correction de l'index
 ```
 
-`MEASURING.md` explique une fois pour toutes comment chaque temps a été
-mesuré ; `TESTING.md` couvre les six fichiers de test de correction sous
-`microbenchmark/`.
+Chaque script écrit un `results*.csv` committé à côté de lui ;
+`MEASURING.md` dit, une fois, comment chaque temps a été pris et ce qu'il
+n'affirme pas (aucun n'est vérifié par la CI, qui ne fait que les
+exécuter ; la seule assertion est que le certificat ne contredit jamais le
+balayage). `TESTING.md` couvre chaque test de correction et ce qu'il
+protège.
 
 ## Pour aller plus loin
 
-Comment la méthode fonctionne et pourquoi elle est correcte : `METHOD.md`.
-Ce qui a été essayé puis refusé, chiffres à l'appui : `REJECTED.md`. Ce
-que chaque test protège : `TESTING.md`. La machine et son bruit :
-`MEASURING.md`. Chaque décision, les questions ouvertes, le commentaire
-d'issue en brouillon : `DECISIONS.md`. Articles, sites d'appel,
-l'issue elle-même : `references.md`. Chaque fichier, en une ligne :
-`what-is-where.md`.
+Comment les deux méthodes fonctionnent et pourquoi elles sont correctes, y
+compris pourquoi BPCG n'a jamais eu besoin du balayage et la subtilité du
+zéro signé de la clé dense : `METHOD.md`. Ce qui a été essayé puis refusé,
+chiffres à l'appui, et comment les deux implémentations qui résolvent ce
+problème ailleurs (`copt`, `linearFW`) s'y prennent : `REJECTED.md`,
+`references.md`. Ce que chaque test protège : `TESTING.md`. La machine et
+son bruit : `MEASURING.md`. Chaque choix et chaque question ouverte :
+`DECISIONS.md`. Chaque fichier, en une ligne : `what-is-where.md`. Tous en
+anglais.

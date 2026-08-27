@@ -39,6 +39,50 @@ passes `find_atom` an explicit `nothing` rather than an index it already
 has, so its lookup is the one this repository can measure honestly rather
 than assume.
 
+## How other implementations decide membership
+
+Read for the certificate, to place it against what exists rather than
+against nothing. Each is a code base, not a paper, because no paper found
+says how its active set is stored.
+
+**`copt`**: Fabian Pedregosa et al., *copt: composite optimization in
+Python*, <https://github.com/openopt/copt>. `copt/frank_wolfe.py` keeps the
+pairwise active set as a `dict` keyed on a *vertex representation* the LMO
+itself returns ("a hashable representation of s, for active set
+management", `copt/constraint.py`); for the L1 ball that key is the pair
+`(sign, index)`. No vector is ever compared: identity comes from the
+oracle, and only oracles that supply one support the pairwise variant.
+
+**`linearFW`**: Simon Lacoste-Julien, the code behind `lacoste2015`,
+<https://github.com/Simon-Lacoste-Julien/linearFW>. `AFW.m` and `PFW.m`
+map a string built from the atom (`hashing`, "a for 0, b for 1", 0-1
+vectors only) to its position with a `containers.Map`, "to see whether
+already seen vertex"; the README asks anyone with other atoms to "modify
+the hashing internal function ... so that you can properly encode the
+atoms in your domain in a unique string". Dropped atoms keep their slot at
+weight zero.
+
+**`TorchFW`**: <https://github.com/marcojira/TorchFW>. Appends the FW
+vertex to its atom list on every step with no membership test at all, so
+duplicates simply accumulate: the failure mode a lookup exists to prevent,
+tolerated outright.
+
+**FrankWolfe.jl's own history**: `find_atom`'s scan dates from the
+`ActiveSet` type's first commit (2021-01-20). Pull request
+[#89](https://github.com/ZIB-IOL/FrankWolfe.jl/pull/89) (2021-02-17),
+"replace equal operator by isequal", made the comparison itself fast, and
+its author noted "I thought about further improving it using the hash of
+atoms, but it seems overkill now that's it's not that limiting". Issue #244
+below followed eight months later.
+
+**Hash consing**: Eiichi Goto, *Monocopy and associative algorithms in
+extended Lisp* (1974); Jean-Christophe Filliâtre, Sylvain Conchon,
+*Type-Safe Modular Hash-Consing* (ML Workshop 2006). The general name for
+what `copt` and `linearFW` do: give each structurally distinct value one
+canonical identity so that equality becomes an identity test. Named here
+so the design is called by the field's word rather than described from
+scratch.
+
 ## The issue this repository answers
 
 **ZIB-IOL/FrankWolfe.jl#244**, "Consider ordered sets for active set
@@ -47,5 +91,26 @@ management", opened 2021-10-07:
 and `good first issue`; no comments in the five years before this repository
 was written. Its entire text asks whether
 [`OrderedCollections.OrderedSet`](https://github.com/JuliaCollections/OrderedCollections.jl)
-or, more generally, a hash kept for the active set's atoms, would help. This
-repository's answer, with the numbers behind it, is `README.md`'s.
+or, more generally, a hash kept for the active set's atoms, would help. Still
+open with no comments as of 2026-08-27, and no commit or pull request since
+mentions `find_atom`, `OrderedSet` or a lookup. This repository's answer,
+with the numbers behind it, is `README.md`'s.
+
+## What was searched for and not found
+
+The certificate rests on an observation about BPCG's step rule (METHOD.md):
+in the branch that adds the LMO vertex, that vertex cannot already be
+active. It was not found stated anywhere: not in `tsuji2022` (whose
+Algorithm 1 writes the update as a set union, `S_{t+1} <- S_t ∪ {w_t}`,
+which hides the question), not in the "Conditional Gradient Methods"
+survey (Braun, Carderera, Combettes, Hassani, Karbasi, Mokhtari, Pokutta,
+arXiv:[2211.14103](https://arxiv.org/abs/2211.14103), whose away-step
+listing does split the coefficient update on `v ∉ S_t` versus `v ∈ S_t`),
+not on the authors' blog post introducing BPCG, and not in
+`blended_pairwise.jl`, whose branch is commented only "add to active set".
+Queries run: the phrases "already in the active set", "already belongs to
+the active set", "already contained in the active set", "cannot be in the
+active set", with and without "pairwise", "blended", and the authors'
+names, plus greps for the same and for `∉` over the three papers' text.
+That is a statement about what was searched, not a claim that nobody has
+noticed it.

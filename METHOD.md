@@ -1,11 +1,110 @@
-# How the folded sparse-pattern key works, and why it is correct
+# How the lookup works, and why it is correct
 
-This file states the idea and the correctness argument. `README.md` has the
-number; `REJECTED.md` has what this replaced and why; `src/` is the code.
-Longer than 80 lines because both the idea and the correctness argument need
-a worked example each to actually land, not just a definition.
+This file states two ideas and the correctness argument for each. The first,
+the absence certificate, does not search at all and is the answer wherever
+the caller is a Frank-Wolfe step; the second, the folded sparse-pattern key,
+is the answer for a caller that has nothing but the atom. `README.md` has
+the numbers; `REJECTED.md` has what these replaced and why; `src/` is the
+code. Longer than 80 lines because each idea and each correctness argument
+needs a worked example to actually land, not just a definition.
 
-## The key idea, in plain terms
+## The certificate: the lookup that does not search
+
+Every Frank-Wolfe variant that keeps an active set does the same thing at
+the top of an iteration: it computes the gradient `g`, then the inner
+product `<g, a>` of `g` with every active atom `a`, to find the active atom
+that scores lowest (the local Frank-Wolfe vertex `s`) and highest (the away
+vertex). `active_set_argminmax` in `FrankWolfe.jl` returns both, with their
+values. Only then does it call the LMO for the vertex `v` of the whole
+polytope that scores lowest, and it computes `<g, v>` for the dual gap.
+
+At that moment the question `find_atom` is about to answer by scanning,
+"is `v` already active?", has already been answered by two numbers in hand.
+If `v` were active, `<g, v>` would be one of the values just minimised, so
+`<g, v> >= <g, s>`. Therefore:
+
+> **`<g, v> < <g, s>` proves `v` is not in the active set.**
+
+One comparison, no index to build, nothing to insert into, nothing to
+repair after `deleteat!`, and no knowledge of the atom's type at all. That
+is `certified_absent` in `src/certificate.jl`; `certified_lookup` wraps it
+into a drop-in for `find_atom`.
+
+When the comparison fails, `<g, v> >= <g, s>`, and since `v` minimises `<g, .>`
+over the whole polytope, exact arithmetic gives `<g, v> = <g, s>`: a tie. A
+tie has two cases. Either `v` is `s` itself, which one `confirm_match` on
+the best atom settles (this is the pairwise Frank-Wolfe case, where the LMO
+routinely returns a vertex that is already active), or `v` ties a distinct
+active atom, and only then does anything search. `certified_lookup` hands
+that case to a `fallback`, the plain scan by default, an index built with
+`index.jl` if the caller keeps one. With a real-valued gradient, a tie
+between distinct vertices has probability zero; it is reachable with
+degenerate gradients (a constant gradient makes every permutation matrix
+score the same), and `test/test_certificate.jl` exercises exactly those.
+
+## Why every measured BPCG call was a miss
+
+`measurement/results.csv` records zero hits in every `find_atom` call the
+three original BPCG runs made. That is not a property of the problems. At
+the one BPCG call site (`blended_pairwise.jl`, the `active_set_update!`
+with `nothing` for the index), the FW step is taken only when the pairwise
+step was refused, that is when `local_gap < phi / sparsity_control` or
+`local_gap < epsilon`, and the FW step itself requires `dual_gap >= epsilon`
+and, lazily, `dual_gap >= phi / sparsity_control`. Here `local_gap = <g, a> -
+<g, s>` over the active set and `dual_gap = <g, x> - <g, v>`. If `v` were
+active, `<g, v> = <g, s>` (above), and since `x` is a convex combination of
+active atoms, `<g, x> <= <g, a>`; so `dual_gap <= local_gap`, which
+contradicts refusing the pairwise step while accepting the FW step, for any
+`sparsity_control >= 1`. **In exact arithmetic, BPCG never reaches
+`find_atom` with an atom that is present.** The scan there is redundant
+work by construction, and the certificate is the floating-point-safe way to
+skip it: when rounding produces a near-tie, the comparison fails and the
+search runs as before. `measurement/instrumentation.jl` evaluates the
+certificate at every real call and counts what it decided;
+`README.md` reports the tallies for BPCG, pairwise Frank-Wolfe with and
+without lazification, and blended conditional gradients.
+
+## What the certificate rests on, in floating point
+
+The argument compares `<g, v>` with values of the same form, never a stored
+value with a recomputed one. Its only assumption is that the same `dot` on
+equal inputs returns the same Float64: if `v == a` elementwise then
+`dot(g, v) == dot(g, a)` bit for bit. That holds for a deterministic
+kernel, which is what BLAS and SparseArrays provide; `test/test_certificate.jl`
+checks it on this machine's OpenBLAS for dense vectors (fresh copies, both
+argument orders, views at odd offsets, since `blended_pairwise.jl` writes
+`dot(gradient, v)` while `active_set_argminmax` writes `dot(atom,
+direction)`) and on permutation matrices. A NaN or Inf in `g` makes the
+comparison false, which is the fall-back direction, and a search runs; the
+fingerprint form (`certified_lookup` over every `dot(g, a)`) hands a NaN
+fingerprint straight to the scan for the same reason. Signed zeros cannot
+split an atom here: `-0.0 * g == 0.0 * g` in every sum, and the final
+`confirm_match` follows `==`. The one soundness gap the dense key below has
+to close does not exist for the certificate, because the certificate keys
+on nothing.
+
+## Where the certificate applies, and where the key still does
+
+The certificate needs a caller that holds `<g, v>` and the active set's
+minimum for the same `g`. Every algorithm in `FrankWolfe.jl` that reaches
+`find_atom` with no index does: BPCG (`blended_pairwise.jl`, from
+`active_set_argminmax`), pairwise Frank-Wolfe in both modes
+(`pairwise.jl`, whose `pfw_step` discards the minimum `argminmax` computes
+and could keep it), the corrective and block-coordinate drivers built on
+the same step, and blended conditional gradients (`blended_cg.jl`, whose
+`lp_separation_oracle` scans the active set for its best atom and value
+against the same direction before it calls the LMO). BCG has a second,
+separate waste the measurement made visible: when that oracle returns an
+active atom rather than calling the LMO, the step passes it to
+`active_set_update!` with no index and `find_atom` scans for an atom the
+oracle had in hand a moment before; 98% of BCG's lookups on Birkhoff were
+that, and returning the position alongside the atom removes them. Only a
+caller that has nothing but the atom, `active_set_update!` invoked
+directly, `weight_from_atom`, or an active set built outside a step, has
+no certificate to use. For those, the folded key below is the answer, and
+for a tie between distinct atoms it is the natural `fallback`.
+
+## The folded sparse-pattern key, for a caller that has only the atom
 
 A Birkhoff-polytope atom is a permutation matrix. Every stored entry is
 1.0: the *values* carry no information at all, because they are all the

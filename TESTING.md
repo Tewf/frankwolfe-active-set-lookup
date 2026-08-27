@@ -84,6 +84,25 @@ correct answer through the wrong structure would slip past a
 correctness-only check) and under an interleaved mixed-alphabet batch, so
 the dispatch is shown not to depend on call order.
 
+**`test/test_certificate.jl`: the certificate decides exactly what it
+claims, and rests on a `dot` that is a function of its inputs' values.**
+The certificate (`src/certificate.jl`) compares `dot(g, v)` with the
+minimum of `dot(g, a)` over the active atoms, so the one thing it needs
+that no index ever did is that equal atoms produce equal Float64s: the
+first testset checks 2,400 cases on dense vectors of length 17 and 3,000
+(fresh copies, either argument order, views into a buffer at an odd
+offset) and on 20x20 and 60x60 permutation matrices, all bit-identical on
+this machine's OpenBLAS and SparseArrays. The rest is the same ground
+truth every other test here uses, a scan: three alphabets, present and
+absent queries, random gradients; then the property the certificate is
+for, that an LMO vertex for the gradient the active set was just
+minimised over never reaches the fall-back (1,280 cases: absent means
+certified, present means it is the best atom); then the cases that must
+fall back and stay right (constant, few-valued and zero gradients, which
+make distinct atoms tie), duplicates resolving to the first copy, an
+empty set, NaN and Inf gradients, and the signed zero, which the
+certificate cannot get wrong because it keys on nothing.
+
 ## What was found
 
 Nothing broke. All four files pass against the shipped implementation
@@ -98,18 +117,22 @@ not a bug.
 
 ## Running the suite
 
+With Julia 1.10 or later and the project instantiated
+(`julia --project=. -e 'using Pkg; Pkg.instantiate()'`):
+
 ```
-source ~/miniforge3/etc/profile.d/conda.sh && conda activate frankwolfe
 julia --project=. microbenchmark/test_equivalence.jl
 julia --project=. microbenchmark/test_lifecycle.jl
 julia --project=. microbenchmark/test_dispatch.jl
 julia --project=. microbenchmark/test_fold_quality.jl
+julia --project=. test/test_public_api.jl
+julia --project=. test/test_certificate.jl
 ```
 
-All four run in `.github/workflows/ci.yml` on every push, alongside the
+All six run in `.github/workflows/ci.yml` on every push, alongside the
 existing `test_soundness.jl` and `test_pattern_key_reps.jl`. Total added
-runtime is about 20 seconds, `test_fold_quality.jl`'s ~13 seconds of real
-atom generation being the only part that isn't sub-second.
+runtime is about 25 seconds, `test_fold_quality.jl`'s ~13 seconds of real
+atom generation being the only part that isn't a few seconds.
 
 ## What is deliberately not tested yet
 
@@ -122,10 +145,11 @@ suite above.
   `active_set_cleanup!`'s shape, not the actual package types or a real
   BPCG run driving them. Nothing here would catch an integration bug in
   how a hashed index gets threaded through `ActiveSet`'s own fields.
-- **PFW and BCG are untested.** Their call sites were found by reading the
-  source (`pairwise.jl:242`, `blended_cg.jl:358`,
-  `corrective_frankwolfe.jl:240`, `block_coordinate_algorithms.jl:421`) and
-  never exercised; this suite inherits that gap unchanged. The
+- **PFW and BCG are measured, not tested.** `measurement/run.jl` now runs
+  both (and lazy PFW) end to end and checks the certificate against the
+  scan at every call, but no test here drives them, and the two generic
+  drivers (`corrective_frankwolfe.jl:240`,
+  `block_coordinate_algorithms.jl:421`) are still only read. The
   lifecycle test's insert/delete mix is synthetic, not drawn from any of
   these algorithms' real call patterns.
 - **Only three atom alphabets.** Birkhoff permutation matrices, L-infinity
