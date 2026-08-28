@@ -21,13 +21,34 @@ using ..AtomKeys, ..AtomConfirm
 export AtomIndex, SparsePatternIndex, DenseValueIndex, bucket_health,
     build_index, lookup_atom, push_atom!, delete_atom!
 
+"""
+    AtomIndex
+
+An index kept *beside* a caller-owned `atoms::Vector`, never a container
+that owns the atoms: a `Dict` from a key (`atom_key`) to the positions of
+every atom that hashes to it. `build_index` picks the concrete type from
+the atoms' element type; `lookup_atom`, `push_atom!` and `delete_atom!`
+are generic over it.
+"""
 abstract type AtomIndex end
 
+"""
+    SparsePatternIndex <: AtomIndex
+
+The index for sparse atoms (`SparseMatrixCSC`, `SparseVector`): buckets
+keyed by the `UInt64` fold of the first `k` stored positions.
+"""
 struct SparsePatternIndex <: AtomIndex
     k::Int
     buckets::Dict{UInt64,Vector{Int}}
 end
 
+"""
+    DenseValueIndex <: AtomIndex
+
+The index for dense atoms (`Array`): buckets keyed by the first `k`
+coordinate values, with `-0.0` canonicalised to `0.0`.
+"""
 struct DenseValueIndex <: AtomIndex
     k::Int
     buckets::Dict{Vector{Float64},Vector{Int}}
@@ -49,14 +70,18 @@ function bucket_insert!(buckets::Dict{K,Vector{Int}}, key::K, position::Int) whe
     return nothing
 end
 
-# Build once, over a `Vector` of atoms already in hand. `k` is fixed here,
-# for the life of the index: `lookup_atom`/`push_atom!`/`delete_atom!` read
-# it off `index.k` rather than taking their own `k`, the same reasoning
-# `pattern_key_uint64`'s `bits` field carries in the research harness
-# (`microbenchmark/pattern_key_reps.jl`): a query's key has to be folded
-# the same way every stored atom's key was, and reading that off the index
-# it was built with is the only way to guarantee it rather than trusting
-# every caller to repeat the same keyword forever.
+"""
+    build_index(atoms; k=DEFAULT_K) -> AtomIndex
+
+Build once, over a `Vector` of atoms already in hand. `k` is fixed here,
+for the life of the index: `lookup_atom`/`push_atom!`/`delete_atom!` read
+it off `index.k` rather than taking their own `k`, the same reasoning
+`pattern_key_uint64`'s `bits` field carries in the research harness
+(`microbenchmark/pattern_key_reps.jl`): a query's key has to be folded
+the same way every stored atom's key was, and reading that off the index
+it was built with is the only way to guarantee it rather than trusting
+every caller to repeat the same keyword forever.
+"""
 function build_index(atoms::AbstractVector{<:SparseMatrixCSC}; k::Int=DEFAULT_K)
     buckets = Dict{UInt64,Vector{Int}}()
     for (idx, atom) in enumerate(atoms)
@@ -82,33 +107,41 @@ function build_index(atoms::AbstractVector{<:Array}; k::Int=DEFAULT_K)
 end
 
 
-# A one-line health check for the precondition stated in METHOD.md: the k
-# positions a key reads have to differ across the atoms, and only sparse
-# atoms get that guarantee for free from `nzind`. A dense key reads fixed
-# cells and assumes they vary, which box corners satisfy and an atom with a
-# dominant repeated value does not.
-#
-# Mean bucket size is the cheapest way to see it. Near 1.0 means the key is
-# separating atoms and every lookup confirms about one candidate. Near the
-# atom count means every atom shares a key, so each lookup hashes and then
-# scans the whole set, which is slower than the plain scan this replaces
-# while still being correct. Raising k will not rescue that case: if the
-# cells being read are constant, reading more constant cells adds nothing.
-# The fix is to read positions that vary. `REJECTED.md` has the measurements
-# on selecting such positions and why that was not worth it where `nzind`
-# already supplies them.
+"""
+    bucket_health(index) -> Float64
+
+A one-line health check for the precondition stated in METHOD.md: the k
+positions a key reads have to differ across the atoms, and only sparse
+atoms get that guarantee for free from `nzind`. A dense key reads fixed
+cells and assumes they vary, which box corners satisfy and an atom with a
+dominant repeated value does not.
+
+Mean bucket size is the cheapest way to see it. Near 1.0 means the key is
+separating atoms and every lookup confirms about one candidate. Near the
+atom count means every atom shares a key, so each lookup hashes and then
+scans the whole set, which is slower than the plain scan this replaces
+while still being correct. Raising k will not rescue that case: if the
+cells being read are constant, reading more constant cells adds nothing.
+The fix is to read positions that vary. `REJECTED.md` has the measurements
+on selecting such positions and why that was not worth it where `nzind`
+already supplies them.
+"""
 function bucket_health(index::AtomIndex)
     isempty(index.buckets) && return 0.0
     total = sum(length(b) for b in values(index.buckets))
     return total / length(index.buckets)
 end
 
-# The one lookup, for either index type: hash `query` down to a bucket
-# (`atom_key` dispatches on `query`'s own type, independent of which
-# concrete `AtomIndex` was passed in), then confirm every candidate against
-# the whole atom before trusting it (`confirm_match`, confirm.jl). Returns
-# the atom's position in `atoms`, or -1, mirroring `FrankWolfe.jl`'s own
-# `find_atom`.
+"""
+    lookup_atom(index, atoms, query) -> Int
+
+The one lookup, for either index type: hash `query` down to a bucket
+(`atom_key` dispatches on `query`'s own type, independent of which
+concrete `AtomIndex` was passed in), then confirm every candidate against
+the whole atom before trusting it (`confirm_match`, confirm.jl). Returns
+the atom's position in `atoms`, or -1, mirroring `FrankWolfe.jl`'s own
+`find_atom`.
+"""
 function lookup_atom(index::AtomIndex, atoms::AbstractVector, query)
     key = atom_key(query; k=index.k)
     candidates = get(index.buckets, key, nothing)
@@ -119,26 +152,34 @@ function lookup_atom(index::AtomIndex, atoms::AbstractVector, query)
     return -1
 end
 
-# Append `atom` to `atoms` and record it in the index, mirroring
-# `active_set_update!`'s `push!` branch: every real BPCG run this
-# repository measured took this branch on every single `find_atom` miss
-# (`measurement/results.csv`'s `find_atom_hits` column is 0 for all three).
+"""
+    push_atom!(index, atoms, atom)
+
+Append `atom` to `atoms` and record it in the index, mirroring
+`active_set_update!`'s `push!` branch: every real BPCG run this
+repository measured took this branch on every single `find_atom` miss
+(`measurement/results.csv`'s `find_atom_hits` column is 0 for all three).
+"""
 function push_atom!(index::AtomIndex, atoms::AbstractVector, atom)
     push!(atoms, atom)
     bucket_insert!(index.buckets, atom_key(atom; k=index.k), length(atoms))
     return nothing
 end
 
-# Remove the atom at `pos` from `atoms` and repair the index, mirroring
-# `active_set_cleanup!`'s `deleteat!`. `deleteat!` shifts every later
-# atom's position down by one, and there is no way to find every bucket
-# entry that needs shifting short of visiting all of them (the removed
-# atom's own bucket is not knowable without its key, and any *other*
-# bucket may hold positions past `pos`), so this walk is O(index size)
-# regardless of how narrow any one bucket is: the same total work
-# `deleteat!` already does shifting the Vector itself, paid again here.
-# Real, but rare in the three workloads this repository measured (`deleteat!`
-# fired 2, 1, and 0 times across 8,002-20,002 iterations); see METHOD.md.
+"""
+    delete_atom!(index, atoms, pos)
+
+Remove the atom at `pos` from `atoms` and repair the index, mirroring
+`active_set_cleanup!`'s `deleteat!`. `deleteat!` shifts every later
+atom's position down by one, and there is no way to find every bucket
+entry that needs shifting short of visiting all of them (the removed
+atom's own bucket is not knowable without its key, and any *other*
+bucket may hold positions past `pos`), so this walk is O(index size)
+regardless of how narrow any one bucket is: the same total work
+`deleteat!` already does shifting the Vector itself, paid again here.
+Real, but rare in the three workloads this repository measured (`deleteat!`
+fired 2, 1, and 0 times across 8,002-20,002 iterations); see METHOD.md.
+"""
 function delete_atom!(index::AtomIndex, atoms::AbstractVector, pos::Int)
     deleteat!(atoms, pos)
     for bucket in values(index.buckets)

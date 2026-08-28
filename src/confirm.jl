@@ -17,6 +17,15 @@ using SparseArrays
 
 export confirm_match
 
+"""
+    confirm_match(a, b) -> Bool
+
+Exact equality of two atoms, the step that makes a bucket hit trustworthy.
+One method per atom family, mirroring `FrankWolfe.jl`'s `_unsafe_equal`:
+`==` for sparse arrays, elementwise `!=` for dense ones, so both follow
+`==` semantics (`0.0 == -0.0`). Every candidate an index returns passes
+through here before `lookup_atom` trusts it.
+"""
 confirm_match(a::AbstractSparseArray, b::AbstractSparseArray) = a == b
 
 function confirm_match(a::Array, b::Array)

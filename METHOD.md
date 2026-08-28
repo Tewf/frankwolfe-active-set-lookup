@@ -240,8 +240,8 @@ whether or not the atoms are sparse; they are simply not worth paying when
 `DEFAULT_K = 4` (`src/keys.jl`) is measured, not guessed: the smallest k
 `microbenchmark/run_pattern_key_reps.jl`'s sweep found that already
 reaches 0.0% collision at both real Birkhoff sizes and gives the fold's
-best total per-iteration cost at the larger one (0.812ns at n=60, this
-repository's headline number). It is an ordinary `Int` keyword on every
+best total per-iteration cost at the larger one (0.812ns at n=60, the
+index's best figure). It is an ordinary `Int` keyword on every
 entry point here, on purpose: `NTuple{k,Int}` keys measured faster still
 in the same sweep, but only stay allocation-free when `k` is fixed as a
 compile-time `Val(k)`, which would force every caller of this module to

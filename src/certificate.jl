@@ -32,13 +32,21 @@ using ..AtomConfirm
 
 export certified_absent, certified_lookup, scan_atoms
 
-# The certificate on its own, for a caller who only wants the guard.
+"""
+    certified_absent(query_value, best_value) -> Bool
+
+The certificate on its own, for a caller who only wants the guard.
+"""
 certified_absent(query_value::Real, best_value::Real) = query_value < best_value
 
-# The fall-back every other method here was compared against: FrankWolfe.jl's
-# own `find_atom`, with this module's `confirm_match` in place of
-# `_unsafe_equal`. First match wins, so duplicates resolve the way `find_atom`
-# resolves them.
+"""
+    scan_atoms(atoms, query) -> Int
+
+The fall-back every other method here was compared against: FrankWolfe.jl's
+own `find_atom`, with this module's `confirm_match` in place of
+`_unsafe_equal`. First match wins, so duplicates resolve the way `find_atom`
+resolves them.
+"""
 function scan_atoms(atoms::AbstractVector, query)
     @inbounds for idx in eachindex(atoms)
         confirm_match(atoms[idx], query) && return idx
@@ -46,18 +54,22 @@ function scan_atoms(atoms::AbstractVector, query)
     return -1
 end
 
-# Position of `query` in `atoms`, or -1, given the active set's best atom.
-# `best_index` and `best_value` are `argmin` and `min` of `dot(g, a)` over
-# `atoms`; `query_value` is `dot(g, query)`. `fallback(atoms, query)` runs
-# only on a tie between distinct atoms, which is where `lookup_atom` over a
-# built index (`index.jl`) belongs if the caller keeps one; the plain scan is
-# the default because a tie is rare enough that its cost does not register
-# (`microbenchmark/results_certificate_*.csv`).
-#
-# The answer matches `scan_atoms` whenever `atoms` holds no duplicate, which
-# is the invariant `find_atom` exists to keep; with duplicates it still
-# matches provided the caller's argmin picks the first of equal values, as
-# `active_set_argminmax`'s strict `<` does.
+"""
+    certified_lookup(atoms, query, query_value, best_index, best_value; fallback=scan_atoms) -> Int
+
+Position of `query` in `atoms`, or -1, given the active set's best atom.
+`best_index` and `best_value` are `argmin` and `min` of `dot(g, a)` over
+`atoms`; `query_value` is `dot(g, query)`. `fallback(atoms, query)` runs
+only on a tie between distinct atoms, which is where `lookup_atom` over a
+built index (`index.jl`) belongs if the caller keeps one; the plain scan is
+the default because a tie is rare enough that its cost does not register
+(`microbenchmark/results_certificate_*.csv`).
+
+The answer matches `scan_atoms` whenever `atoms` holds no duplicate, which
+is the invariant `find_atom` exists to keep; with duplicates it still
+matches provided the caller's argmin picks the first of equal values, as
+`active_set_argminmax`'s strict `<` does.
+"""
 function certified_lookup(
     atoms::AbstractVector,
     query,
@@ -72,14 +84,18 @@ function certified_lookup(
     return fallback(atoms, query)
 end
 
-# The same idea when the caller kept every `dot(g, a)` rather than only the
-# minimum: the gradient is then a fingerprint the algorithm computed for
-# free, and only atoms whose fingerprint equals `query_value` can be `query`.
-# No argmin needed, no index, and the walk is one Float64 comparison per
-# atom, which on sparse atoms is an order of magnitude cheaper than one `==`.
-# A NaN fingerprint (a NaN or two opposite infinities in `g`) equals nothing,
-# itself included, so it says nothing about any atom and the walk hands over
-# to the scan rather than miss a present atom.
+"""
+    certified_lookup(atoms, query, query_value, values) -> Int
+
+The same idea when the caller kept every `dot(g, a)` rather than only the
+minimum: the gradient is then a fingerprint the algorithm computed for
+free, and only atoms whose fingerprint equals `query_value` can be `query`.
+No argmin needed, no index, and the walk is one Float64 comparison per
+atom, which on sparse atoms is an order of magnitude cheaper than one `==`.
+A NaN fingerprint (a NaN or two opposite infinities in `g`) equals nothing,
+itself included, so it says nothing about any atom and the walk hands over
+to the scan rather than miss a present atom.
+"""
 function certified_lookup(
     atoms::AbstractVector,
     query,
