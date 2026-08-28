@@ -54,7 +54,8 @@ miss at n=60): that gap is the session-to-session noise this file already
 warns about, and it is why every comparison with the certificate is made
 within one session rather than against a committed number. Non-lazy
 pairwise Frank-Wolfe and blended conditional gradients on Birkhoff n=60
-took 99 s and 126 s; the other ten runs took under six seconds each.
+took 66 s and 130 s, pairwise Frank-Wolfe on the L-inf ball 25 s; the
+other nine runs took under five seconds each.
 
 ## Fastest of five, not the mean
 

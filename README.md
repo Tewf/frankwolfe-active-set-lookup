@@ -19,7 +19,7 @@ the scan's 2,042 ns on Birkhoff n=60, with no index to build, insert into
 or repair; a tie is settled by one comparison with `s`. On real runs it
 decided every call: 788 of 788 in blended pairwise conditional gradients,
 20,001 of 20,001 in pairwise Frank-Wolfe on Birkhoff n=60, where the
-active set reaches 9,368 atoms and the scan is 6.4% of the run.** For a
+active set reaches 9,368 atoms and the scan is 10.4% of the run.** For a
 caller that has only the atom, a folded structural hash with exact
 confirmation beats the scan at every measured size and stays here as the
 fall-back. This answers
@@ -95,24 +95,24 @@ would have decided, then checks the two agree.
 | Algorithm | Problem | Max active set | `find_atom` calls | Hits | Scan's share of run | Certified absent | Tie, `v == s` | Tie, search needed |
 |---|---|---|---|---|---|---|---|---|
 | BPCG, lazy | Birkhoff n=25 | 158 | 159 | 0 | 0.07% | 159 | 0 | 0 |
-| BPCG, lazy | Birkhoff n=60 | 389 | 389 | 0 | 0.06% | 389 | 0 | 0 |
+| BPCG, lazy | Birkhoff n=60 | 389 | 389 | 0 | 0.08% | 389 | 0 | 0 |
 | BPCG, lazy | L-inf ball d=3,000 | 241 | 240 | 0 | 0.02% | 240 | 0 | 0 |
-| PFW | Birkhoff n=25 | 2,463 | 8,001 | 5,535 | 6.05% | 2,466 | 5,535 | 0 |
-| PFW | Birkhoff n=60 | 9,368 | 20,001 | 10,628 | 6.41% | 9,373 | 10,628 | 0 |
-| PFW | L-inf ball d=3,000 | 2,613 | 15,001 | 12,387 | 0.81% | 2,614 | 12,387 | 0 |
-| PFW, lazy | Birkhoff n=25 | 181 | 204 | 0 | 0.17% | 204 | 0 | 0 |
-| PFW, lazy | Birkhoff n=60 | 576 | 598 | 0 | 0.12% | 598 | 0 | 0 |
+| PFW | Birkhoff n=25 | 2,463 | 8,001 | 5,535 | 11.80% | 2,466 | 5,535 | 0 |
+| PFW | Birkhoff n=60 | 9,368 | 20,001 | 10,628 | 10.39% | 9,373 | 10,628 | 0 |
+| PFW | L-inf ball d=3,000 | 2,613 | 15,001 | 12,387 | 1.56% | 2,614 | 12,387 | 0 |
+| PFW, lazy | Birkhoff n=25 | 181 | 204 | 0 | 0.18% | 204 | 0 | 0 |
+| PFW, lazy | Birkhoff n=60 | 576 | 598 | 0 | 0.11% | 598 | 0 | 0 |
 | PFW, lazy | L-inf ball d=3,000 | 295 | 323 | 0 | 0.03% | 323 | 0 | 0 |
 | BCG | Birkhoff n=25 | 148 | 7,948 | 7,800 | 0.14% | 148 | 38 | 0 |
-| BCG | Birkhoff n=60 | 623 | 19,988 | 19,365 | 0.14% | 623 | 126 | 0 |
-| BCG | L-inf ball d=3,000 | 348 | 1,827 | 1,360 | 0.06% | 467 | 17 | 0 |
+| BCG | Birkhoff n=60 | 623 | 19,988 | 19,365 | 0.15% | 623 | 126 | 0 |
+| BCG | L-inf ball d=3,000 | 348 | 1,827 | 1,360 | 0.07% | 467 | 17 | 0 |
 
 (`measurement/results.csv`, `measurement/results_algorithms.csv`; 8,000,
 20,000 and 15,000 iterations, `epsilon=1e-9`.) The certificate never
 contradicted the scan, and no call ever needed a search. Three things the
 table says that the earlier BPCG-only measurement could not: the scan is
 a real cost in non-lazy pairwise Frank-Wolfe, whose active set grows to
-thousands of atoms (6.4% of a 99 s run at n=60); every one of its 53-83%
+thousands of atoms (10.4% of a 66 s run at n=60); every one of its 53-83%
 hits was the best atom itself, so one comparison found it; and BCG's
 lookups are mostly for an atom it took out of its own active set a moment
 earlier (`lp_separation_oracle` returns the atom without its position),

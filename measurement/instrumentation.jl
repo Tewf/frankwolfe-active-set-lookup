@@ -44,6 +44,7 @@ export TIMER,
     lookup_calls,
     lookup_hits,
     lookup_share_of,
+    run_time_of,
     active_set_sizes!,
     deletion_calls,
     certificate_counts
@@ -118,7 +119,9 @@ function FrankWolfe.find_atom(active_set::FrankWolfe.ActiveSet, atom)
     if idx != -1
         HITS[] += 1
     end
-    tally_certificate!(active_set, atom, idx)
+    # the tally scans the active set once more (O(|S|) dot products), which
+    # is instrumentation, not the algorithm: timed so it can be subtracted
+    @timeit TIMER "certificate_tally" tally_certificate!(active_set, atom, idx)
     return idx
 end
 
@@ -181,14 +184,31 @@ certificate_counts() = copy(CERT)
 """
     lookup_share_of(total_section)
 
-Fraction of `total_section`'s accumulated time spent inside the nested
-`"find_atom"` timer, or `0.0` if `find_atom` was never called under it.
+Fraction of the run's own time spent inside the nested `"find_atom"` timer,
+or `0.0` if `find_atom` was never called under it. The run's own time is
+`total_section` minus the nested `"certificate_tally"` timer: the tally is
+this file's instrumentation, not the algorithm, and it costs a scan of the
+active set per call, which at 20,001 calls on 9,000 atoms is a quarter of
+the wall time; leaving it in the denominator understated the scan's share
+of pairwise Frank-Wolfe by a third until 2026-08-28.
 """
 function lookup_share_of(total_section)
     if !haskey(total_section.inner_timers, "find_atom")
         return 0.0
     end
-    return TimerOutputs.time(total_section["find_atom"]) / TimerOutputs.time(total_section)
+    return TimerOutputs.time(total_section["find_atom"]) / run_time_of(total_section)
+end
+
+"""
+    run_time_of(total_section)
+
+`total_section`'s accumulated time in nanoseconds, minus the nested
+`"certificate_tally"` timer: what the algorithm itself took.
+"""
+function run_time_of(total_section)
+    tally = haskey(total_section.inner_timers, "certificate_tally") ?
+        TimerOutputs.time(total_section["certificate_tally"]) : 0
+    return TimerOutputs.time(total_section) - tally
 end
 
 """

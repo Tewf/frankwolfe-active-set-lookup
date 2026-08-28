@@ -69,7 +69,7 @@ end
 function measure(algorithm, problem; max_iteration, warmup_iteration=50)
     run_once(algorithm, problem; max_iteration=warmup_iteration) # compiles, discarded
     sizes = run_once(algorithm, problem; max_iteration=max_iteration)
-    total_ns = TimerOutputs.time(TIMER["total"])
+    total_ns = run_time_of(TIMER["total"])   # the tally's own scans excluded
     cert = certificate_counts()
     return (
         algorithm=algorithm.name,

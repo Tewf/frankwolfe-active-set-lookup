@@ -42,7 +42,7 @@ jobs:
     # generates 40,000 real Birkhoff atoms across five trials).
     # measurement/run.jl also runs pairwise Frank-Wolfe
     # and blended conditional gradients, whose non-lazy Birkhoff n=60 runs
-    # take 99 s and 126 s locally, so the harness step alone is about five
+    # take 66 s and 130 s locally, so the harness step alone is about five
     # minutes and the whole job about twelve on a shared runner; 30 covers
     # a cold cache and a slower one.
     timeout-minutes: 30

@@ -21,7 +21,7 @@ Birkhoff n=60, sans index à construire, à alimenter ni à réparer ; une
 elle a tranché chaque appel : 788 sur 788 en gradient conditionnel par
 paires mélangé (BPCG), 20 001 sur 20 001 en Frank-Wolfe par paires (PFW)
 sur Birkhoff n=60, où l'ensemble actif atteint 9 368 atomes et où le
-balayage coûte 6,4 % de l'exécution.** Pour un appelant qui ne dispose que
+balayage coûte 10,4 % de l'exécution.** Pour un appelant qui ne dispose que
 de l'atome, une clé structurelle repliée avec confirmation exacte bat le
 balayage à toutes les tailles mesurées et reste ici comme solution de
 repli. Ceci répond à
@@ -100,26 +100,26 @@ ce que le certificat aurait décidé, puis vérifie que les deux concordent.
 | Algorithme | Problème | Ensemble actif max | Appels `find_atom` | Trouvés | Part du balayage | Absence certifiée | Égalité, `v == s` | Égalité, recherche |
 |---|---|---|---|---|---|---|---|---|
 | BPCG paresseux | Birkhoff n=25 | 158 | 159 | 0 | 0,07 % | 159 | 0 | 0 |
-| BPCG paresseux | Birkhoff n=60 | 389 | 389 | 0 | 0,06 % | 389 | 0 | 0 |
+| BPCG paresseux | Birkhoff n=60 | 389 | 389 | 0 | 0,08 % | 389 | 0 | 0 |
 | BPCG paresseux | Boule L-inf d=3 000 | 241 | 240 | 0 | 0,02 % | 240 | 0 | 0 |
-| PFW | Birkhoff n=25 | 2 463 | 8 001 | 5 535 | 6,05 % | 2 466 | 5 535 | 0 |
-| PFW | Birkhoff n=60 | 9 368 | 20 001 | 10 628 | 6,41 % | 9 373 | 10 628 | 0 |
-| PFW | Boule L-inf d=3 000 | 2 613 | 15 001 | 12 387 | 0,81 % | 2 614 | 12 387 | 0 |
-| PFW paresseux | Birkhoff n=25 | 181 | 204 | 0 | 0,17 % | 204 | 0 | 0 |
-| PFW paresseux | Birkhoff n=60 | 576 | 598 | 0 | 0,12 % | 598 | 0 | 0 |
+| PFW | Birkhoff n=25 | 2 463 | 8 001 | 5 535 | 11,80 % | 2 466 | 5 535 | 0 |
+| PFW | Birkhoff n=60 | 9 368 | 20 001 | 10 628 | 10,39 % | 9 373 | 10 628 | 0 |
+| PFW | Boule L-inf d=3 000 | 2 613 | 15 001 | 12 387 | 1,56 % | 2 614 | 12 387 | 0 |
+| PFW paresseux | Birkhoff n=25 | 181 | 204 | 0 | 0,18 % | 204 | 0 | 0 |
+| PFW paresseux | Birkhoff n=60 | 576 | 598 | 0 | 0,11 % | 598 | 0 | 0 |
 | PFW paresseux | Boule L-inf d=3 000 | 295 | 323 | 0 | 0,03 % | 323 | 0 | 0 |
 | BCG | Birkhoff n=25 | 148 | 7 948 | 7 800 | 0,14 % | 148 | 38 | 0 |
-| BCG | Birkhoff n=60 | 623 | 19 988 | 19 365 | 0,14 % | 623 | 126 | 0 |
-| BCG | Boule L-inf d=3 000 | 348 | 1 827 | 1 360 | 0,06 % | 467 | 17 | 0 |
+| BCG | Birkhoff n=60 | 623 | 19 988 | 19 365 | 0,15 % | 623 | 126 | 0 |
+| BCG | Boule L-inf d=3 000 | 348 | 1 827 | 1 360 | 0,07 % | 467 | 17 | 0 |
 
 (`measurement/results.csv`, `measurement/results_algorithms.csv` ; 8 000,
 20 000 et 15 000 itérations, `epsilon=1e-9`.) Le certificat n'a jamais
 contredit le balayage, et aucun appel n'a eu besoin d'une recherche. Trois
 choses que la mesure BPCG seule ne pouvait pas dire : le balayage est un
 vrai coût en Frank-Wolfe par paires non paresseux, dont l'ensemble actif
-grossit jusqu'à des milliers d'atomes (6,4 % d'une exécution de 99 s à
-n=60) ; chacun de ses 53 à 83 % d'appels trouvés était le meilleur atome
-lui-même, qu'une comparaison suffit à reconnaître ; et les appels de BCG
+grossit jusqu'à des milliers d'atomes (10,4 % d'une exécution de 66 s à
+n=60) ; chacun de ses appels trouvés (53 à 83 %) portait sur le meilleur atome
+lui-même, qu'une seule comparaison reconnaît ; et les appels de BCG
 concernent surtout un atome qu'il vient de prendre dans son propre
 ensemble actif (`lp_separation_oracle` renvoie l'atome sans sa position),
 ce qui est un gaspillage distinct, propre à l'index.
