@@ -145,11 +145,23 @@ distinct retombe sur le balayage et en coûte le prix (798, 2 091 et
 d'appel réels de BPCG, le coût total par itération est de 0,16 à 0,21 ns
 pour le certificat contre 1,0 à 3,1 ns pour l'index (ses coûts
 d'insertion et de réparation venant de sa propre campagne) et 5 à 40 ns
-pour le balayage (`results_certificate_total.csv`). Pour Frank-Wolfe par
-paires sur Birkhoff n=60, les 6,35 s que le balayage a passées sur 20 001
-appels deviennent, aux coûts par appel ci-dessus, environ 2 ms : ce chiffre
-est une arithmétique sur des parties mesurées, non une exécution de bout
-en bout, car l'obtenir suppose de modifier `pairwise.jl` lui-même.
+pour le balayage (`results_certificate_total.csv`).
+
+Mesuré aussi de bout en bout, pour Frank-Wolfe par paires sur Birkhoff
+n=60 (`measurement/run_end_to_end.jl`, `results_end_to_end.csv`) : la
+branche `master` de FrankWolfe.jl (`0ac1d782`) contre la branche qui
+applique le certificat à ses sites d'appel (`certificate-244`,
+`CONTRIBUTING.md`), même machine, même session, meilleure de trois
+exécutions. `master` : 71,4 s, dont 7,3 s dans 20 001 balayages. La
+branche : 66,3 s, aucun balayage, les mêmes 9 367 atomes et le même
+objectif jusqu'au dernier chiffre. Deux réserves accompagnent ces nombres.
+Les 5,1 s gagnées sont le coût du balayage moins les produits scalaires du
+certificat lui-même, et deux exécutions d'un code identique dans cette
+session (la version 0.6.4 du registre et `master`, mêmes itérés) ont
+différé de 3 s : la partie exacte du résultat, ce sont les comptes et les
+itérés, non les secondes. Et la 0.6.4 du registre n'est pas `master` : un
+changement en amont du pas dual de BPCG (#647) déplace les itérés du BPCG
+paresseux, d'où la comparaison contre `master`.
 
 ## Reproduire les mesures
 

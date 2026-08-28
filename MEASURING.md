@@ -109,6 +109,20 @@ published loop line for line (verified against
 `~/.julia/packages/FrankWolfe/*/src/active_set.jl` at the version pinned in
 `Manifest.toml`), so timing it does not change what it does.
 
+**The certificate tally is instrumentation, and it is timed apart.** The
+same override also evaluates the certificate on every call and compares it
+with the scan, which costs one pass over the active set per call. Until
+2026-08-28 that pass sat inside the `"total"` timer: pairwise Frank-Wolfe
+at n=60 measured 98.8 s with it and 68.3 s without, and every share in the
+README table was a ratio to the inflated figure. It is now under its own
+`"certificate_tally"` timer and `run_time_of` subtracts it; the corrected
+shares are in `DECISIONS.md`. **End-to-end seconds carry the session's
+noise**: `measurement/run_end_to_end.jl` runs identical code twice (the
+registry release and master, same iterates on pairwise n=60) and got
+68.3 s and 71.4 s as fastest-of-three, so a difference between variants
+below about 3 s means nothing here, and the counts and the final objective
+are the part of that file to trust.
+
 ## Warm-up, always
 
 Every measured run, harness and microbenchmark alike, is preceded by an

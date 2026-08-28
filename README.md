@@ -138,11 +138,21 @@ to the scan and costs what the scan costs (798, 2,091 and 357 ns), and no
 real run produced one. Weighted by BPCG's real call rates, the total per
 iteration is 0.16-0.21 ns for the certificate against 1.0-3.1 ns for the
 index (its insert and delete-repair costs from its own committed sweep)
-and 5-40 ns for the scan (`results_certificate_total.csv`). For pairwise
-Frank-Wolfe on Birkhoff n=60, the 6.35 s the scan spent across 20,001
-calls becomes, at the per-call costs above, about 2 ms: that figure is
-arithmetic from measured parts, not an end-to-end run, because reaching it
-means changing `pairwise.jl` itself.
+and 5-40 ns for the scan (`results_certificate_total.csv`).
+
+Measured end to end as well, for pairwise Frank-Wolfe on Birkhoff n=60
+(`measurement/run_end_to_end.jl`, `results_end_to_end.csv`): FrankWolfe.jl
+master (`0ac1d782`) against the branch that applies the certificate at its
+call sites (`certificate-244`, `CONTRIBUTING.md`), same machine, same
+session, fastest of three. Master: 71.4 s, of which 7.3 s in 20,001 scans.
+The branch: 66.3 s, no scan at all, the same 9,367 atoms and the same
+objective to the last digit. Two caveats sit next to those numbers. The
+5.1 s saved is the scan's cost less the certificate's own inner products,
+and two runs of identical code in that session (registry 0.6.4 and master,
+same iterates) came out 3 s apart, so the exact part of the result is the
+counts and the iterates, not the seconds. And the registry's 0.6.4 is not
+master: an upstream change to BPCG's dual step (#647) moves lazy BPCG's
+iterates, which is why the comparison is against master.
 
 ## Reproducing the measurements
 

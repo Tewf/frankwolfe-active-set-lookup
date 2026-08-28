@@ -449,13 +449,55 @@ of the lookup methods rather than importing the package (the reason is in
 `what-is-where.md`), so a change to `src/` is caught by `test/`, never by
 the sweeps.
 
+## The end-to-end run: what changed, and what is still a judgement call
+
+The branch `certificate-244` of FrankWolfe.jl (`CONTRIBUTING.md`) applies
+the certificate at every call site that reached `find_atom` with no index,
+and `measurement/run_end_to_end.jl` times the stock package against it.
+Running it caught two things about this repository's own numbers before it
+produced the one it was written for.
+
+**The harness had been timing itself.** `instrumentation.jl`'s certificate
+tally scans the active set once per `find_atom` call to compare the
+certificate with the scan, and it sat inside the `"total"` timer. On
+pairwise Frank-Wolfe at n=60 that is 20,001 extra scans of up to 9,368
+atoms: the run took 98.8 s with the tally and 68.3 s without. Every share
+in the README table was a ratio to an inflated total; the tally is now
+timed on its own and `run_time_of` excludes it, and the shares moved from
+6.4% to 10.4% at n=60, from 6.05% to 11.8% at n=25, from 0.81% to 1.56% on
+the L-inf ball, and by a hundredth of a percent elsewhere. The counts, the
+`find_atom` timer itself and every microbenchmark were never affected. The
+end-to-end script never arms the tally.
+
+**The registry release is not master.** Registry 0.6.4 predates "update
+dual step update in BPCG (#647)"; lazy BPCG's iterates diverge from master
+at iteration 2 for that reason alone (389 atoms and one objective against
+426 and another). Unpatched master and the branch are byte-identical over
+the whole run. So the baseline is master, developed from a checkout into a
+temporary environment, and the CSV keeps all three variants so the
+difference is on record.
+
+**What the run says, and how far.** Master: 71.4 s, 7.3 s of it in 20,001
+scans; the branch: 66.3 s and no scan, same atoms, same objective. The
+5.1 s saved is the scan less the certificate's own inner products. Two
+runs of identical code in the same session (registry and master on this
+problem, same iterates) came out 3 s apart across fastest-of-three, so a
+5 s difference is real but its second decimal is not. Lazy BPCG, whose
+scans cost 2 ms, came out 0.1 s slower on the branch, inside that noise.
+
+**Still a judgement call.** Upstream, the certificate is enabled for
+`ActiveSet` only: the caching active-set types compute their minimum
+differently from `dot(a, direction)`, and the argument needs the same
+function on the same inputs. `corrective_frankwolfe.jl` keeps the scan, no
+minimum being in scope at its call site. The end-to-end script is not in
+CI: it needs a checkout of the branch, and its numbers are timings, which
+CI asserts nothing about.
+
 ## Open questions, unresolved by this repository
 
-- **Pairwise Frank-Wolfe end to end.** The lookup share (6.4% at Birkhoff
-  n=60) and the per-call costs are measured; the run with the certificate
-  in place is not, because it needs `pairwise.jl` to keep the minimum
-  `active_set_argminmax` already computes. That is the first thing a pull
-  request should measure.
+- **Pairwise Frank-Wolfe end to end: measured on 2026-08-28**, see the
+  section above; it stays listed because the seconds carry the session's
+  3 s of noise and only the counts and the iterates are exact.
 - **`sparsity_control` below 1.** The BPCG argument needs it at or above
   1; the default is 2 and nothing here checks what the package does with a
   smaller value, or whether any caller uses one.

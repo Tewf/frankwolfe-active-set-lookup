@@ -61,12 +61,16 @@ tag `vX.Y.Z` on the commit that bumps both.
 ## For FrankWolfe.jl maintainers
 
 What is proposed upstream is the certificate alone, a few lines at each
-call site, not this package. At `blended_pairwise.jl`, `pairwise.jl`,
-`blended_cg.jl` and the corrective and block-coordinate drivers: pass `-1`
-to `active_set_update!` when `dot(gradient, v) < dot_forward_vertex`, both
-already in scope, and fall back to `find_atom` otherwise; keep the minimum
-`pfw_step` currently discards; have `lp_separation_oracle` return the
-position beside the atom it removes. `METHOD.md` has the argument and the
+call site, not this package, and it exists as code: the branch
+`certificate-244` of [Tewf/FrankWolfe.jl](https://github.com/Tewf/FrankWolfe.jl/tree/certificate-244)
+adds `find_atom(active_set, atom, direction, best_index, best_value)`,
+which takes the minimum `active_set_argminmax` already computed, and uses
+it at the BPCG, pairwise, blended-CG and block-coordinate call sites;
+`lp_separation_oracle` returns the position beside the atom. The
+library's own active-set, variant and trajectory tests pass on it
+unchanged, the iterates being the same to the last bit.
+`measurement/run_end_to_end.jl` times the stock package against that
+branch (`results_end_to_end.csv`). `METHOD.md` has the argument and the
 two floating-point facts it rests on, `test/test_certificate.jl` checks
 both on whatever machine runs it, and `measurement/run.jl` re-runs the
 comparison against whatever FrankWolfe.jl version resolves, so every
