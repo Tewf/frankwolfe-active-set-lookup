@@ -26,9 +26,9 @@ de l'atome, une clé structurelle repliée avec confirmation exacte bat le
 balayage à toutes les tailles mesurées et reste ici comme solution de
 repli. Ceci répond à
 [`ZIB-IOL/FrankWolfe.jl#244`](https://github.com/ZIB-IOL/FrankWolfe.jl/issues/244),
-ouverte depuis 2021 sans réponse. Plusieurs retournements ont été
-nécessaires, dont un premier brouillon concluant que hacher ne sert à rien
-et un deuxième qui s'arrêtait au hachage ; `REJECTED.md` (en anglais) dit
+ouverte depuis 2021 sans réponse. Il a fallu plusieurs revirements pour
+en arriver là, dont un premier brouillon concluant que hacher ne sert à
+rien et un deuxième qui s'arrêtait au hachage ; `REJECTED.md` (en anglais) dit
 ce qui a été essayé puis refusé, chiffres à l'appui.
 
 **Jamais ouvert FrankWolfe.jl ?** Commencez par [`guide/`](guide/README.md)
@@ -55,7 +55,7 @@ nécessaire en arithmétique exacte, et le certificat est la façon sûre en
 virgule flottante de s'en passer ; `METHOD.md` (en anglais) donne les deux
 arguments et ce sur quoi ils reposent.
 
-## L'utiliser
+## Utilisation
 
 ```julia
 using Pkg; Pkg.add(url="https://github.com/Tewf/frankwolfe-active-set-lookup")
@@ -80,12 +80,12 @@ pos = certified_lookup(atoms, v, dot(g, v), best, best_value;
                        fallback=(a, q) -> lookup_atom(index, a, q))
 ```
 
-`certified_lookup` ne sait rien du type de l'atome : le même appel sert
-aux matrices de permutation, aux coins de boîte et à tout ce que `dot`
-accepte. L'index choisit sa clé selon le type des atomes (`SparseMatrixCSC`
+`certified_lookup` ignore tout du type de l'atome : le même appel sert
+aux matrices de permutation, aux sommets d'une boîte et à tout ce que
+`dot` accepte. L'index choisit sa clé selon le type des atomes (`SparseMatrixCSC`
 et `SparseVector` vers une clé sur les *positions* stockées, un `Array`
 dense vers une clé sur les premières *valeurs*), et chaque candidat d'une
-case est confirmé contre l'atome entier avant d'être accepté, si bien
+case est vérifié contre l'atome entier avant d'être accepté, si bien
 qu'une collision coûte une comparaison et jamais une mauvaise réponse.
 Derrière `src/ActiveSetLookup.jl`, quatre petits fichiers, `src/certificate.jl`,
 `src/keys.jl`, `src/confirm.jl`, `src/index.jl`, chacun lisible seul.
@@ -115,7 +115,7 @@ ce que le certificat aurait décidé, puis vérifie que les deux concordent.
 (`measurement/results.csv`, `measurement/results_algorithms.csv` ; 8 000,
 20 000 et 15 000 itérations, `epsilon=1e-9`.) Le certificat n'a jamais
 contredit le balayage, et aucun appel n'a eu besoin d'une recherche. Trois
-choses que la mesure BPCG seule ne pouvait pas dire : le balayage est un
+choses que la mesure limitée à BPCG ne pouvait pas montrer : le balayage est un
 vrai coût en Frank-Wolfe par paires non paresseux, dont l'ensemble actif
 grossit jusqu'à des milliers d'atomes (10,4 % d'une exécution de 66 s à
 n=60) ; chacun de ses appels trouvés (53 à 83 %) portait sur le meilleur atome
@@ -136,7 +136,7 @@ Par appel, sur les mêmes atomes dans la même session
 | Boule L-inf d=3 000, 241 atomes | absent | 10,2 | 41,8 | 322,1 |
 | | présent (meilleur atome) | 1 392,7 | 1 448,1 | 1 619,9 |
 
-Un absent coûte au certificat une comparaison de Float64 (les 10 ns sont
+Un absent ne coûte au certificat qu'une comparaison de Float64 (les 10 ns sont
 le plancher du chronomètre pour un appel, le même pour chaque colonne) ; un
 présent coûte à chaque méthode l'unique comparaison exacte, soit 1,4 µs
 sur un atome dense de 3 000 coordonnées. Une égalité forcée avec un atome

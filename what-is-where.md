@@ -72,6 +72,9 @@ measurement/                real runs, instrumented, on problems where the
                                   deletions, lookup share, certificate tally;
                                   the per-iteration rates the sweeps weight by
   results_algorithms.csv         the same columns for PFW, lazy PFW and BCG
+  run_end_to_end.jl              PFW and BPCG timed on stock FrankWolfe.jl and on the
+                                  certificate branch, two processes, fastest of three
+  results_end_to_end.csv         its rows: both variants, times, counts, final primal
 microbenchmark/              the lookup itself, isolated from any solver
   Project.toml                 the sweeps' own environment: FrankWolfe.jl for real
                                 atoms, kept out of the package's dependencies
@@ -157,12 +160,14 @@ REJECTED.md                 what was tried and refused, with the numbers that
                              who proposes hashing the whole atom, or a trie
 README.md                  the question, the numbers, the answer; leads with the
                              answer, then a usable code sample and how to reproduce
-README.fr.md                the same, in French, marked as wanting a native pass
+README.fr.md                the same, in French; the English version prevails
+                             where the two differ
 references.md               the papers and the issue, cited never redistributed
 MEASURING.md                the machine, the noise, and what a number here does not claim
 DECISIONS.md                every judgement call this repository made, and
                             the ones still open
 CITATION.cff                how to cite this repository
+CHANGELOG.md                what each version added, and what is unreleased
 LICENSE                     MIT
 .github/workflows/ci.yml    Pkg.test() on Julia 1.10 and the newest release, then
                              every script end to end and every microbenchmark
