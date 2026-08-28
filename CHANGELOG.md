@@ -14,7 +14,8 @@ behind each entry, `REJECTED.md` what each one replaced.
 - The harness's certificate tally is timed on its own and excluded from
   run time. It had inflated every total, so the shares in the README table
   were understated: pairwise n=60 is 10.4% of a 66 s run, not 6.4% of 99 s.
-- The upstream proposal exists as code: the branch `certificate-244`, with
+- The upstream proposal exists as code, ZIB-IOL/FrankWolfe.jl#649 from the
+  branch `certificate-244`, with
   `find_atom(active_set, atom, direction, best_index, best_value)` at the
   BPCG, pairwise, blended-CG and block-coordinate call sites,
   `lp_separation_oracle` returning the position beside the atom, and the
