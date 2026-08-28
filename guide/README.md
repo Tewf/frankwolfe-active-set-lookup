@@ -2,7 +2,7 @@
 
 For a reader who has never opened FrankWolfe.jl. Four small files, no
 dependency on the library, each readable in a few minutes; then a run and
-a test. Longer than 80 lines because a walkthrough that stops to link out
+a test. Longer than the 80-line ceiling `CONTRIBUTING.md` sets, because a walkthrough that stops to link out
 before the reader has the picture is not a walkthrough.
 
 ```

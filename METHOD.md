@@ -5,7 +5,7 @@ the absence certificate, does not search at all and is the answer wherever
 the caller is a Frank-Wolfe step; the second, the folded sparse-pattern key,
 is the answer for a caller that has nothing but the atom. `README.md` has
 the numbers; `REJECTED.md` has what these replaced and why; `src/` is the
-code. Longer than 80 lines because each idea and each correctness argument
+code. Longer than the 80-line ceiling `CONTRIBUTING.md` sets, because each idea and each correctness argument
 needs a worked example to actually land, not just a definition.
 
 ## The certificate: the lookup that does not search

@@ -3,8 +3,8 @@
 Not an appendix. If a future maintainer, or the author six months from now,
 proposes any of these again, the numbers below are why they were not
 shipped. Every claim here has a results CSV behind it; the file names are
-given so a claim can be re-checked rather than taken on faith. Longer than
-80 lines because each of four rejected methods needs its own number, not
+given so a claim can be re-checked rather than taken on faith. Longer than the
+80-line ceiling `CONTRIBUTING.md` sets, because each of four rejected methods needs its own number, not
 just its name, to actually be useful to the next person who thinks of it.
 
 The four methods below were refused against the folded sparse-pattern

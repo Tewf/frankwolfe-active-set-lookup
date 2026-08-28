@@ -5,10 +5,11 @@
 
 > [Read in English](README.md)
 
-Suit la structure de `README.md`, donc dépasse aussi les 80 lignes pour
-la même raison : la réponse, un exemple utilisable et les commandes de
-reproduction tiennent ensemble sur une seule page. En cas de doute, la
-version anglaise fait foi.
+Suit la structure de `README.md`, donc dépasse aussi les 80 lignes que ce
+dépôt impose à ses fichiers Markdown (`CONTRIBUTING.md`, en anglais,
+énonce la règle et ses exceptions), pour la même raison : la réponse, un
+exemple utilisable et les commandes de reproduction tiennent ensemble sur
+une seule page. En cas de doute, la version anglaise fait foi.
 
 **Le sommet que l'oracle linéaire (LMO) vient de renvoyer n'est pas dans
 l'ensemble actif dès que `<g,v> < <g,s>`, où `s` est l'atome actif que le
@@ -180,5 +181,6 @@ chiffres à l'appui, et comment les deux implémentations qui résolvent ce
 problème ailleurs (`copt`, `linearFW`) s'y prennent : `REJECTED.md`,
 `references.md`. Ce que chaque test protège : `TESTING.md`. La machine et
 son bruit : `MEASURING.md`. Chaque choix et chaque question ouverte :
-`DECISIONS.md`. Chaque fichier, en une ligne : `what-is-where.md`. Tous en
-anglais.
+`DECISIONS.md`. Chaque fichier, en une ligne : `what-is-where.md`. Comment
+ce dépôt est écrit, comment y travailler et ce qui est proposé en amont,
+à l'adresse des mainteneurs : `CONTRIBUTING.md`. Tous en anglais.

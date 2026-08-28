@@ -5,9 +5,11 @@
 
 > [Lire en français](README.fr.md)
 
-Longer than 80 lines because a stranger's entry point needs the answer, a
-usable code sample, and the reproduction commands together on one page,
-not spread across links before anything has been said.
+Longer than the 80 lines this repository keeps its Markdown files under
+(`CONTRIBUTING.md` states the rule and its exceptions), because a
+stranger's entry point needs the answer, a usable code sample, and the
+reproduction commands together on one page, not spread across links
+before anything has been said.
 
 **The vertex the LMO just returned is not in the active set whenever
 `<g,v> < <g,s>`, where `s` is the active atom the step has already found
@@ -170,4 +172,6 @@ What was tried and refused, with numbers, and how the two implementations
 that do solve this elsewhere (`copt`, `linearFW`) do it: `REJECTED.md`,
 `references.md`. What each test protects: `TESTING.md`. The machine and
 its noise: `MEASURING.md`. Every judgement call and open question:
-`DECISIONS.md`. Every file, one line each: `what-is-where.md`.
+`DECISIONS.md`. Every file, one line each: `what-is-where.md`. How this
+repository is written, how to work on it, and what is proposed upstream,
+addressed to the maintainers: `CONTRIBUTING.md`.
