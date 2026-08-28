@@ -20,7 +20,8 @@ jobs:
     # at ~13s, is the only one of the four that isn't sub-second: it
     # generates 40,000 real Birkhoff atoms across five trials).
     # test/test_public_api.jl and test/test_certificate.jl add about 3
-    # seconds each. measurement/run.jl now also runs pairwise Frank-Wolfe
+    # seconds each, test/test_guide.jl and guide/run.jl about 5 seconds
+    # each. measurement/run.jl now also runs pairwise Frank-Wolfe
     # and blended conditional gradients, whose non-lazy Birkhoff n=60 runs
     # take 99 s and 126 s locally, so the harness step alone is about five
     # minutes; 30 covers a cold cache and a slower shared runner.
@@ -200,6 +201,17 @@ jobs:
       # the fall-back except on a tie. A real pass/fail check.
       - name: The certificate tests pass
         run: julia --project=. test/test_certificate.jl
+
+      # The guide (guide/): two algorithms a newcomer can read, with the
+      # membership question answered three ways side by side. The test
+      # asserts the oracle minimises, the active set stays a valid mixture
+      # after every step, the three lookups never disagree, and the oracle's
+      # vertex is never already active in the Frank-Wolfe branch; the demo
+      # is run so it cannot rot.
+      - name: The guide's tests pass and its demo runs
+        run: |
+          julia --project=. test/test_guide.jl
+          julia --project=. guide/run.jl
 
       # Not a timing check, like the other sweeps: confirms the certificate
       # sweep still runs against whatever FrankWolfe.jl version resolves,

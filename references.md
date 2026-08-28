@@ -15,12 +15,40 @@ which measures the plain `ActiveSet` the issue is about) is the paper's
 specialised-subtype precedent this repository's `DECISIONS.md` points back
 to.
 
+**`canon1968`**: Michael D. Canon, Clifton D. Cullum. *A tight upper bound
+on the rate of convergence of Frank-Wolfe algorithm.* SIAM Journal on
+Control **6** (1968), no. 4, 509-516. The `1/t` rate of plain Frank-Wolfe
+is tight when the optimum lies on a face of the polytope rather than at a
+corner: the iterates zigzag between that face's corners. Why `guide/`'s
+plain run, whose target mixes a few corners, is still `1e-4` from the
+optimum after thousands of iterations, and why `test/test_guide.jl`
+checks the rate rather than a tolerance.
+
 **`frankwolfe1956`**: Marguerite Frank, Philip Wolfe. *An algorithm for
 quadratic programming.* Naval Research Logistics Quarterly **3** (1956),
 no. 1-2, 95-110. The original method: minimise a convex function over a
 polytope by repeatedly moving toward the vertex the current gradient likes
 best. Every algorithm this repository runs (and the active set every one of
 them keeps a convex combination of vertices in) descends from this paper.
+
+**`guelat1986`**: Jacques Guélat, Patrice Marcotte. *Some comments on
+Wolfe's 'away step'.* Mathematical Programming **35** (1986), 110-119.
+DOI: [10.1007/BF01589445](https://doi.org/10.1007/BF01589445). Plain
+Frank-Wolfe converges linearly when the optimum lies in the polytope's
+relative interior, and the away step recovers a linear rate otherwise:
+the contrast `guide/README.md` draws, and the start of the line of
+active-set variants whose membership question this repository is about.
+
+**`jaggi2013`**: Martin Jaggi. *Revisiting Frank-Wolfe: Projection-Free
+Sparse Convex Optimization.* ICML 2013, PMLR **28** (1), 427-435.
+<https://proceedings.mlr.press/v28/jaggi13.html>. The bounds
+`test/test_guide.jl` asserts on plain Frank-Wolfe: `f(x_t) - f* <=
+2 C_f / (t + 2)` (Theorem 1) and a dual gap at most `6.75 C_f / (t + 2)`
+somewhere among the first `t` iterates (Theorem 2, with `beta = 27/8`),
+where the curvature constant `C_f` is at most `L` times the squared
+diameter, `2n` for permutation matrices. The dual gap as a stopping
+certificate, which every algorithm in `guide/` and in FrankWolfe.jl uses,
+is this paper's framing.
 
 **`lacoste2015`**: Simon Lacoste-Julien, Martin Jaggi. *On the Global Linear
 Convergence of Frank-Wolfe Optimization Variants.* NeurIPS 2015. arXiv:

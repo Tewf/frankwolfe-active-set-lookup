@@ -27,6 +27,11 @@ including a first draft that concluded hashing does not help and a second
 that stopped at the hash; `REJECTED.md` says what was tried and refused,
 with the numbers.
 
+**Never opened FrankWolfe.jl?** Start with [`guide/`](guide/README.md):
+both algorithms reimplemented in four short files with no dependency on
+the library, the membership question answered three ways side by side, a
+narrated run and a test of every claim.
+
 ## The method, in three sentences
 
 Every Frank-Wolfe step that keeps an active set first minimises `<g, a>`

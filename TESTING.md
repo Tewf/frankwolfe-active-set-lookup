@@ -103,6 +103,23 @@ make distinct atoms tie), duplicates resolving to the first copy, an
 empty set, NaN and Inf gradients, and the signed zero, which the
 certificate cannot get wrong because it keys on nothing.
 
+**`test/test_guide.jl`: the guide's algorithms do what the walkthrough
+says.** `guide/` reimplements plain Frank-Wolfe and blended pairwise
+conditional gradients on a brute-force Birkhoff oracle, with no dependency
+on the library, so a newcomer can read where the membership question
+arises. The test checks the oracle returns the vertex with the smallest
+`dot(g, v)` against every vertex; that plain Frank-Wolfe meets the `1/t`
+bound of Jaggi (2013) at every iteration, the rate it actually has when the
+optimum lies on a face, and never leaves the polytope; that after every
+single step the active set is
+a valid mixture (positive weights summing to one, `x` equal to the
+weighted sum), including steps that drop an atom; that the scan, the
+index and the certificate answer identically on every question asked;
+and, on every Frank-Wolfe step of every run, that the oracle's vertex was
+not already active and the certificate saw it, which is the step-rule
+argument in METHOD.md. The worked n=3 example in `guide/README.md` is
+checked number by number.
+
 ## What was found
 
 Nothing broke. All four files pass against the shipped implementation
@@ -127,11 +144,12 @@ julia --project=. microbenchmark/test_dispatch.jl
 julia --project=. microbenchmark/test_fold_quality.jl
 julia --project=. test/test_public_api.jl
 julia --project=. test/test_certificate.jl
+julia --project=. test/test_guide.jl
 ```
 
-All six run in `.github/workflows/ci.yml` on every push, alongside the
+All seven run in `.github/workflows/ci.yml` on every push, alongside the
 existing `test_soundness.jl` and `test_pattern_key_reps.jl`. Total added
-runtime is about 25 seconds, `test_fold_quality.jl`'s ~13 seconds of real
+runtime is about 30 seconds, `test_fold_quality.jl`'s ~13 seconds of real
 atom generation being the only part that isn't a few seconds.
 
 ## What is deliberately not tested yet

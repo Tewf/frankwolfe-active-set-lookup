@@ -30,6 +30,12 @@ nécessaires, dont un premier brouillon concluant que hacher ne sert à rien
 et un deuxième qui s'arrêtait au hachage ; `REJECTED.md` (en anglais) dit
 ce qui a été essayé puis refusé, chiffres à l'appui.
 
+**Jamais ouvert FrankWolfe.jl ?** Commencez par [`guide/`](guide/README.md)
+(en anglais) : les deux algorithmes réimplémentés en quatre courts
+fichiers sans dépendre de la bibliothèque, la question d'appartenance
+répondue de trois façons côte à côte, une exécution commentée et un test
+de chaque affirmation.
+
 ## La méthode, en trois phrases
 
 Tout pas de Frank-Wolfe qui maintient un ensemble actif commence par

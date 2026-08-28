@@ -20,9 +20,24 @@ src/                        the method itself, usable without reading a benchmar
                                atoms Vector, plus bucket_health, whose mean
                                bucket size shows METHOD.md's precondition
                                going unmet
-test/                       tests for src/, independent of microbenchmark/'s
-                             own test suite (which tests the comparisons that
-                             led to this design, not this module's code)
+guide/                      Frank-Wolfe from zero for a reader who has never
+                             opened the library: no dependency on FrankWolfe.jl
+  README.md                   the walkthrough: the problem, the vocabulary, the
+                               two algorithms, the three answers, a worked n=3
+                               example, what the real library adds
+  birkhoff.jl                 the toy polytope: permutations, vertices, a
+                               brute-force LMO, the quadratic objective
+  active_set.jl               the active set (atoms, weights, x) and the two
+                               moves that never add or remove an atom
+  lookups.jl                  the three answers side by side, each owning the
+                               append and removal of atoms; CrossChecked runs
+                               all three and records any disagreement
+  frank_wolfe.jl              plain Frank-Wolfe, and blended pairwise with the
+                               library's step rule; every iteration recorded
+  run.jl                      both algorithms on one problem, narrated
+test/                       tests for src/ and guide/, independent of
+                             microbenchmark/'s own test suite (which tests the
+                             comparisons that led to this design)
   test_public_api.jl          @test: build_index dispatch, lookup-vs-scan
                                equivalence, push_atom!/delete_atom! lifecycle,
                                the signed-zero fix, a forced fold collision
@@ -31,6 +46,11 @@ test/                       tests for src/, independent of microbenchmark/'s
                                agrees with a scan; an LMO vertex never reaches
                                the fall-back except on a tie; ties, duplicates,
                                NaN/Inf gradients, signed zero
+  test_guide.jl               @test: the guide's oracle minimises, plain FW
+                               meets the 1/t bound inside the polytope, the active set is
+                               a valid mixture after every step, the three
+                               lookups agree, the oracle's vertex is never active
+                               in the FW branch, the worked n=3 example
 measurement/                real runs, instrumented, on problems where the
                              active set grows
   instrumentation.jl          times, counts, and counts hits for find_atom without
