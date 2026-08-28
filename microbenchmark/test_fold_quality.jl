@@ -46,7 +46,7 @@
 # TESTING.md records this as a finding, not a weakness papered over: the
 # birthday comparison is the one doing the real discriminating here.
 #
-# Run: julia --project=. microbenchmark/test_fold_quality.jl
+# Run: julia --project=microbenchmark microbenchmark/test_fold_quality.jl
 
 using Test, Random, FrankWolfe
 

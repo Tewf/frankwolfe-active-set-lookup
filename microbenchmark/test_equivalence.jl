@@ -18,7 +18,7 @@
 # occurrence, and nothing about a bucketed structure guarantees that for
 # free unless its bucket order (or its own confirm loop) preserves it.
 #
-# Run: julia --project=. microbenchmark/test_equivalence.jl
+# Run: julia --project=microbenchmark microbenchmark/test_equivalence.jl
 
 using Test, Random
 

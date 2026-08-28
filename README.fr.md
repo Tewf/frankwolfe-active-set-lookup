@@ -58,8 +58,10 @@ arguments et ce sur quoi ils reposent.
 ## L'utiliser
 
 ```julia
-include("src/ActiveSetLookup.jl")
-using .ActiveSetLookup
+using Pkg; Pkg.add(url="https://github.com/Tewf/frankwolfe-active-set-lookup")
+using ActiveSetLookup
+# Depuis un clone sans rien installer, le même module se charge par fichier :
+# include("src/ActiveSetLookup.jl"); using .ActiveSetLookup
 
 # Dans un pas. `atoms` est le Vector de l'ensemble actif, `g` le gradient ;
 # le pas vient de minimiser dot(g, a) sur atoms (active_set_argminmax), il
@@ -84,8 +86,8 @@ accepte. L'index choisit sa clé selon le type des atomes (`SparseMatrixCSC`
 et `SparseVector` vers une clé sur les *positions* stockées, un `Array`
 dense vers une clé sur les premières *valeurs*), et chaque candidat d'une
 case est confirmé contre l'atome entier avant d'être accepté, si bien
-qu'une collision coûte une comparaison et jamais une mauvaise réponse. Le
-module tient en quatre petits fichiers, `src/certificate.jl`,
+qu'une collision coûte une comparaison et jamais une mauvaise réponse.
+Derrière `src/ActiveSetLookup.jl`, quatre petits fichiers, `src/certificate.jl`,
 `src/keys.jl`, `src/confirm.jl`, `src/index.jl`, chacun lisible seul.
 
 ## Ce qui a été mesuré
@@ -154,18 +156,22 @@ en bout, car l'obtenir suppose de modifier `pairwise.jl` lui-même.
 Avec Julia 1.10 ou plus récent, depuis la racine du dépôt :
 
 ```
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia --project=. measurement/run.jl                     # results.csv, results_algorithms.csv
-julia --project=. microbenchmark/run_certificate.jl      # le certificat face à la clé, au hachage et au balayage
-julia --project=. microbenchmark/run.jl                  # la campagne hachage-complet-contre-balayage
-julia --project=. microbenchmark/run_prefix.jl           # la campagne du hachage de préfixe
-julia --project=. microbenchmark/run_lifecycle.jl        # clé de motif creux + trie, cycle de vie complet
-julia --project=. microbenchmark/run_pattern_key_reps.jl # représentations UInt64/NTuple/Vector{Int}
-julia --project=. test/test_certificate.jl               # les tests de correction du certificat
-julia --project=. test/test_public_api.jl                # les tests de correction de l'index
+julia --project=. -e 'using Pkg; Pkg.test()'                       # Aqua, puis le certificat, l'index et le guide
+julia --project=measurement -e 'using Pkg; Pkg.instantiate()'
+julia --project=measurement measurement/run.jl                     # results.csv, results_algorithms.csv
+julia --project=microbenchmark -e 'using Pkg; Pkg.instantiate()'
+julia --project=microbenchmark microbenchmark/run_certificate.jl   # le certificat face à la clé, au hachage et au balayage
+julia --project=microbenchmark microbenchmark/run.jl               # la campagne hachage-complet-contre-balayage
+julia --project=microbenchmark microbenchmark/run_prefix.jl        # la campagne du hachage de préfixe
+julia --project=microbenchmark microbenchmark/run_lifecycle.jl     # clé de motif creux + trie, cycle de vie complet
+julia --project=microbenchmark microbenchmark/run_pattern_key_reps.jl # représentations UInt64/NTuple/Vector{Int}
 ```
 
-Chaque script écrit un `results*.csv` committé à côté de lui ;
+L'environnement du paquet ne contient que `SparseArrays` ; les deux
+dossiers de scripts portent chacun un `Project.toml` avec FrankWolfe.jl,
+si bien que la bibliothèque mesurée ne devient jamais une dépendance du
+code qu'on lui propose. Chaque script écrit un `results*.csv` committé à
+côté de lui ;
 `MEASURING.md` dit, une fois, comment chaque temps a été pris et ce qu'il
 n'affirme pas (aucun n'est vérifié par la CI, qui ne fait que les
 exécuter ; la seule assertion est que le certificat ne contredit jamais le

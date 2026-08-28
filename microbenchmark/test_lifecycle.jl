@@ -22,7 +22,7 @@
 # reproduces every subseed, and the printed step number/last op pins down
 # where in that one sequence it broke.
 #
-# Run: julia --project=. microbenchmark/test_lifecycle.jl
+# Run: julia --project=microbenchmark microbenchmark/test_lifecycle.jl
 
 using Test, Random
 

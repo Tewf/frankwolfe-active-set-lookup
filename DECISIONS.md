@@ -409,6 +409,46 @@ was: one coherent sweep whose timing and its weighting by real rates would
 otherwise share state across a file boundary for no separation of
 concerns.
 
+## A package, and the campaign in its own environments: what changed, and what is still a judgement call
+
+Until 2026-08-28 `src/` was loaded by `include`, the way every script here
+loads its files, and `Project.toml` was the environment the scripts ran in.
+Making the repository usable from outside a clone meant turning the root
+into a package, which is a different object with different rules.
+
+**What changed.** `Project.toml` names the package `ActiveSetLookup`, its
+version (the same number as `CITATION.cff`), its one dependency
+(`SparseArrays`), compat bounds for everything including the test target,
+and that target: `Test`, `Random`, `LinearAlgebra`, `FrankWolfe` for real
+atoms, and `Aqua` for the package-quality checks a registry reviewer
+would run. `test/runtests.jl` makes `Pkg.test()` real. Every exported name
+carries the comment that stood above it as a docstring, so `?certified_lookup`
+answers in a session. `index.jl` and `certificate.jl` no longer `include`
+`keys.jl` and `confirm.jl` a second time: each submodule is defined once
+and reached with `using ..Name`, where before the package held three
+copies of `AtomConfirm`. CI runs `Pkg.test()` on Julia 1.10 and the newest
+release before the harness job.
+
+**FrankWolfe.jl is not a dependency of the package, by decision.** The
+package proposes code to FrankWolfe.jl; a package that depended on it
+could never be depended on by it, and `src/` uses nothing from it (`dot`
+and the atoms come from the caller). So the campaign, which needs the
+library to instrument, runs in its own environments,
+`measurement/Project.toml` and `microbenchmark/Project.toml`. Two files
+with nearly the same three lines, against the rule that a fact lives in
+one place: the alternative, one shared environment somewhere neither
+folder owns, would have each folder reaching sideways for its
+dependencies. Two small declarations beside the scripts they serve won.
+
+**Still a judgement call.** The version number lives in two files
+(`Project.toml`, `CITATION.cff`) because each format demands its own; a
+release bumps both in one commit. The Julia 1.10 CI job is what the compat
+bound promises and was not run locally, where only 1.12 is installed; the
+first CI run on a push decides it. `microbenchmark/` keeps its own copies
+of the lookup methods rather than importing the package (the reason is in
+`what-is-where.md`), so a change to `src/` is caught by `test/`, never by
+the sweeps.
+
 ## Open questions, unresolved by this repository
 
 - **Pairwise Frank-Wolfe end to end.** The lookup share (6.4% at Birkhoff

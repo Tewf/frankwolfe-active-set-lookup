@@ -1,0 +1,9 @@
+# The environment the microbenchmarks and their tests run in: FrankWolfe.jl
+# supplies the real atoms (its LMOs). The lookup methods compared here are
+# the harness's own research copies, so the package is not a dependency.
+[deps]
+FrankWolfe = "f55ce6ea-fdc5-4628-88c5-0087fe54bd30"
+
+[compat]
+FrankWolfe = "0.6"
+julia = "1.10"

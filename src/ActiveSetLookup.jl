@@ -16,11 +16,11 @@
 # re-exports their public names in one place, so `using .ActiveSetLookup` is
 # all a caller needs.
 #
-# Not a registered Julia package (no `uuid`/`version` in `Project.toml`):
-# this repository already runs everything by `include`-ing a file and
-# `using` its module, `measurement/` and `microbenchmark/` alike, and this
-# module follows the same convention rather than introducing a second way
-# to load code.
+# A Julia package (`Project.toml` at the repository root): `Pkg.add(url=...)`
+# then `using ActiveSetLookup`. `include`-ing this file and `using
+# .ActiveSetLookup` also works, for a clone with nothing installed, which is
+# how `guide/` loads it. The submodules below are each defined once; they
+# reach each other with `using ..Name`, never by including a file twice.
 module ActiveSetLookup
 
 include(joinpath(@__DIR__, "keys.jl"))

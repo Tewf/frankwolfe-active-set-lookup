@@ -16,9 +16,7 @@
 module AtomIndexing
 
 using SparseArrays
-include(joinpath(@__DIR__, "keys.jl"))
-include(joinpath(@__DIR__, "confirm.jl"))
-using .AtomKeys, .AtomConfirm
+using ..AtomKeys, ..AtomConfirm
 
 export AtomIndex, SparsePatternIndex, DenseValueIndex, bucket_health,
     build_index, lookup_atom, push_atom!, delete_atom!

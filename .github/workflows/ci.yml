@@ -7,6 +7,27 @@ on:
   workflow_dispatch:
 
 jobs:
+  # The package: Pkg.test() on the oldest supported Julia and the newest.
+  # test/runtests.jl runs Aqua's package-quality checks, then the three
+  # suites under test/ (TESTING.md says what each protects). About a
+  # minute of precompilation, then seconds; 15 covers a cold cache.
+  test:
+    name: Pkg.test on Julia ${{ matrix.julia-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        julia-version: ["1.10", "1"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v3
+        with:
+          version: ${{ matrix.julia-version }}
+      - uses: julia-actions/cache@v3
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+
   measure:
     name: Run every measurement script end to end
     runs-on: ubuntu-latest
@@ -19,34 +40,33 @@ jobs:
     # add about 20 seconds total (test_fold_quality.jl,
     # at ~13s, is the only one of the four that isn't sub-second: it
     # generates 40,000 real Birkhoff atoms across five trials).
-    # test/test_public_api.jl and test/test_certificate.jl add about 3
-    # seconds each, test/test_guide.jl and guide/run.jl about 5 seconds
-    # each. measurement/run.jl now also runs pairwise Frank-Wolfe
+    # measurement/run.jl also runs pairwise Frank-Wolfe
     # and blended conditional gradients, whose non-lazy Birkhoff n=60 runs
     # take 99 s and 126 s locally, so the harness step alone is about five
-    # minutes; 30 covers a cold cache and a slower shared runner.
+    # minutes and the whole job about twelve on a shared runner; 30 covers
+    # a cold cache and a slower one.
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: julia-actions/setup-julia@v2
+      - uses: julia-actions/setup-julia@v3
         with:
-          version: "1.12"
+          version: "1"
 
-      - uses: julia-actions/cache@v2
+      - uses: julia-actions/cache@v3
 
-      - name: Instantiate the project
-        run: julia --project=. -e 'using Pkg; Pkg.instantiate()'
+      # Two environments, one per script folder (measurement/Project.toml,
+      # microbenchmark/Project.toml): both hold FrankWolfe.jl, which the
+      # package itself must never depend on. The guide's demo runs in the
+      # package's own environment, since it needs nothing beyond it.
+      - name: Instantiate the harness environments
+        run: |
+          julia --project=measurement -e 'using Pkg; Pkg.instantiate()'
+          julia --project=microbenchmark -e 'using Pkg; Pkg.instantiate()'
 
-      # Not a timing check: MEASURING.md is explicit that no timing here is
-      # asserted, a shared runner cannot reproduce the reference machine's
-      # numbers, and a red tick over noise would mean nothing. This confirms
-      # the harness still runs against whatever FrankWolfe.jl version
-      # Project.toml resolves to, end to end, and that results.csv still has
-      # the columns README.md's table describes.
       - name: The measurement harness runs end to end
         run: |
-          julia --project=. measurement/run.jl
+          julia --project=measurement measurement/run.jl
           test -s measurement/results.csv
           test "$(wc -l < measurement/results.csv)" -eq 4
           head -1 measurement/results.csv | grep -q "lookup_share"
@@ -66,7 +86,7 @@ jobs:
 
       - name: The microbenchmark sweep runs end to end
         run: |
-          julia --project=. microbenchmark/run.jl
+          julia --project=microbenchmark microbenchmark/run.jl
           test -s microbenchmark/results.csv
           head -1 microbenchmark/results.csv | grep -q "scan_miss_ns"
 
@@ -77,7 +97,7 @@ jobs:
       # columns REJECTED.md's section 2 describes.
       - name: The prefix-hashing sweep runs end to end
         run: |
-          julia --project=. microbenchmark/run_prefix.jl
+          julia --project=microbenchmark microbenchmark/run_prefix.jl
           test -s microbenchmark/results_prefix_timing.csv
           test -s microbenchmark/results_prefix_collisions.csv
           test -s microbenchmark/results_prefix_crossover.csv
@@ -92,7 +112,7 @@ jobs:
       # rather than silently timed as if it hadn't.
       - name: The instrumented lookup still matches a real one
         run: |
-          julia --project=. -e '
+          julia --project=measurement -e '
             include("measurement/instrumentation.jl")
             using .LookupInstrumentation, FrankWolfe
             as = FrankWolfe.ActiveSet([(1.0, [1.0, 2.0]), (0.0, [3.0, 4.0])])
@@ -108,7 +128,7 @@ jobs:
       # that would actually catch a sparse-pattern key or trie key
       # regression on the signed-zero hazard, not just a crash.
       - name: The signed-zero soundness tests pass
-        run: julia --project=. microbenchmark/test_soundness.jl
+        run: julia --project=microbenchmark microbenchmark/test_soundness.jl
 
       # Not a timing check, for the same reason as the other sweeps above:
       # confirms the lookup+insert+deletion-repair lifecycle sweep still
@@ -116,7 +136,7 @@ jobs:
       # the columns README.md's lifecycle section describes.
       - name: The lifecycle sweep runs end to end
         run: |
-          julia --project=. microbenchmark/run_lifecycle.jl
+          julia --project=microbenchmark microbenchmark/run_lifecycle.jl
           test -s microbenchmark/results_lifecycle_collisions.csv
           test -s microbenchmark/results_lifecycle_timing.csv
           test -s microbenchmark/results_lifecycle_total.csv
@@ -132,7 +152,7 @@ jobs:
       # catch a UInt64-fold or NTuple regression on the collision-safety
       # property, not just a crash.
       - name: The pattern-key representation collision-safety tests pass
-        run: julia --project=. microbenchmark/test_pattern_key_reps.jl
+        run: julia --project=microbenchmark microbenchmark/test_pattern_key_reps.jl
 
       # Not a timing check, for the same reason as the other sweeps above:
       # confirms the three-representation allocation-and-time sweep still
@@ -141,7 +161,7 @@ jobs:
       # section describes.
       - name: The pattern-key representation sweep runs end to end
         run: |
-          julia --project=. microbenchmark/run_pattern_key_reps.jl
+          julia --project=microbenchmark microbenchmark/run_pattern_key_reps.jl
           test -s microbenchmark/results_pattern_key_reps_timing.csv
           test -s microbenchmark/results_pattern_key_reps_allocations.csv
           test -s microbenchmark/results_pattern_key_reps_collisions.csv
@@ -163,7 +183,7 @@ jobs:
       # (2/4/8/16) x all three alphabets, plus a dedicated duplicates
       # testset.
       - name: The structure-vs-scan equivalence property tests pass
-        run: julia --project=. microbenchmark/test_equivalence.jl
+        run: julia --project=microbenchmark microbenchmark/test_equivalence.jl
 
       # Nobody tested `active_set_cleanup!`'s `deleteat!` shifting every
       # later index down by one before this branch. Randomised
@@ -171,54 +191,34 @@ jobs:
       # single operation, so a later "optimisation" to the repair logic
       # that breaks index validity fails here, not silently.
       - name: The insert/delete lifecycle tests pass
-        run: julia --project=. microbenchmark/test_lifecycle.jl
+        run: julia --project=microbenchmark microbenchmark/test_lifecycle.jl
 
       # Sparse atoms must route to the folded pattern key and dense atoms
       # to the value-prefix hash, the same dispatch shape `_unsafe_equal`
       # itself already has (one method on `Array`, one on
       # `AbstractSparseArray`), and both must still agree with the scan.
       - name: The sparse/dense dispatch tests pass
-        run: julia --project=. microbenchmark/test_dispatch.jl
+        run: julia --project=microbenchmark microbenchmark/test_dispatch.jl
 
       # The comparison this stage asked for: whether the hand-written
       # incremental fold clusters, measured at narrowed bit widths against
       # both Julia's own `hash` and the birthday prediction. Prints the
       # comparison table either way; only fails if the fold is clustering.
       - name: The fold-quality-vs-birthday tests pass
-        run: julia --project=. microbenchmark/test_fold_quality.jl
-
-      # The public src/ module: the public build_index/lookup_atom/
-      # push_atom!/delete_atom! API, checked against a scan independently of
-      # microbenchmark/'s test_*.jl files above, which test the comparisons
-      # that led to this design rather than this module's own code. A real
-      # pass/fail check, same as every @test step above.
-      - name: The public src/ module's own tests pass
-        run: julia --project=. test/test_public_api.jl
-
-      # The certificate's own tests (src/certificate.jl): that `dot` is a
-      # function of its inputs' values on this runner's BLAS, that the
-      # certificate agrees with a scan, and that an LMO vertex never reaches
-      # the fall-back except on a tie. A real pass/fail check.
-      - name: The certificate tests pass
-        run: julia --project=. test/test_certificate.jl
+        run: julia --project=microbenchmark microbenchmark/test_fold_quality.jl
 
       # The guide (guide/): two algorithms a newcomer can read, with the
-      # membership question answered three ways side by side. The test
-      # asserts the oracle minimises, the active set stays a valid mixture
-      # after every step, the three lookups never disagree, and the oracle's
-      # vertex is never already active in the Frank-Wolfe branch; the demo
-      # is run so it cannot rot.
-      - name: The guide's tests pass and its demo runs
-        run: |
-          julia --project=. test/test_guide.jl
-          julia --project=. guide/run.jl
+      # membership question answered three ways side by side. Its test runs
+      # under Pkg.test above; the narrated demo is run here so it cannot rot.
+      - name: The guide's demo runs
+        run: julia --project=. guide/run.jl
 
       # Not a timing check, like the other sweeps: confirms the certificate
       # sweep still runs against whatever FrankWolfe.jl version resolves,
       # and that both results files keep the columns README.md describes.
       - name: The certificate sweep runs end to end
         run: |
-          julia --project=. microbenchmark/run_certificate.jl
+          julia --project=microbenchmark microbenchmark/run_certificate.jl
           test -s microbenchmark/results_certificate_timing.csv
           test -s microbenchmark/results_certificate_total.csv
           head -1 microbenchmark/results_certificate_timing.csv | grep -q "lookup_ns"

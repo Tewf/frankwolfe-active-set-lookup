@@ -28,8 +28,7 @@
 # argument in full and the reason every measured BPCG call was a miss.
 module AtomCertificate
 
-include(joinpath(@__DIR__, "confirm.jl"))
-using .AtomConfirm
+using ..AtomConfirm
 
 export certified_absent, certified_lookup, scan_atoms
 

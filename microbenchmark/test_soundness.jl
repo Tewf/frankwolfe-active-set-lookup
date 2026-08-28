@@ -16,7 +16,7 @@
 # remembered to canonicalise anything; the trie key is exactly as exposed as
 # the flat prefix hash above, and closed the same way.
 #
-# Run: julia --project=. microbenchmark/test_soundness.jl
+# Run: julia --project=microbenchmark microbenchmark/test_soundness.jl
 
 using Test, SparseArrays
 include(joinpath(@__DIR__, "sparse_pattern.jl"))

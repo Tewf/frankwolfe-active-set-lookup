@@ -120,6 +120,14 @@ not already active and the certificate saw it, which is the step-rule
 argument in METHOD.md. The worked n=3 example in `guide/README.md` is
 checked number by number.
 
+**`test/runtests.jl`: Aqua, then the three suites above.** `Pkg.test()`'s
+entry point runs each suite in its own module (every file has its own
+`MASTER_SEED`, so they must not share a namespace) after
+[Aqua.jl](https://github.com/JuliaTesting/Aqua.jl)'s package-quality
+checks, the ones a registry reviewer runs: no method ambiguities, no
+stale or uncapped dependency, no type piracy, every export defined, no
+task left running after `using ActiveSetLookup`.
+
 ## What was found
 
 Nothing broke. All four files pass against the shipped implementation
@@ -134,23 +142,26 @@ not a bug.
 
 ## Running the suite
 
-With Julia 1.10 or later and the project instantiated
-(`julia --project=. -e 'using Pkg; Pkg.instantiate()'`):
+With Julia 1.10 or later, from the repository root:
 
 ```
-julia --project=. microbenchmark/test_equivalence.jl
-julia --project=. microbenchmark/test_lifecycle.jl
-julia --project=. microbenchmark/test_dispatch.jl
-julia --project=. microbenchmark/test_fold_quality.jl
-julia --project=. test/test_public_api.jl
-julia --project=. test/test_certificate.jl
-julia --project=. test/test_guide.jl
+julia --project=. -e 'using Pkg; Pkg.test()'   # Aqua, then the three suites
+julia --project=microbenchmark -e 'using Pkg; Pkg.instantiate()'
+julia --project=microbenchmark microbenchmark/test_equivalence.jl
+julia --project=microbenchmark microbenchmark/test_lifecycle.jl
+julia --project=microbenchmark microbenchmark/test_dispatch.jl
+julia --project=microbenchmark microbenchmark/test_fold_quality.jl
 ```
 
-All seven run in `.github/workflows/ci.yml` on every push, alongside the
-existing `test_soundness.jl` and `test_pattern_key_reps.jl`. Total added
-runtime is about 30 seconds, `test_fold_quality.jl`'s ~13 seconds of real
-atom generation being the only part that isn't a few seconds.
+`test/test_guide.jl` also runs on its own (`julia --project=.
+test/test_guide.jl`), needing nothing beyond the package's environment;
+the other two suites need FrankWolfe.jl for real atoms and get it from
+the test target. All of it runs in `.github/workflows/ci.yml` on every
+push: `Pkg.test()` on Julia 1.10 and the newest release, and the four
+`microbenchmark/` tests in the `measure` job alongside the existing
+`test_soundness.jl` and `test_pattern_key_reps.jl`. `Pkg.test()` is about
+15 seconds after precompilation; `test_fold_quality.jl`'s ~13 seconds of
+real atom generation is the only other part that isn't a few seconds.
 
 ## What is deliberately not tested yet
 

@@ -54,8 +54,10 @@ what they rest on.
 ## Using it
 
 ```julia
-include("src/ActiveSetLookup.jl")
-using .ActiveSetLookup
+using Pkg; Pkg.add(url="https://github.com/Tewf/frankwolfe-active-set-lookup")
+using ActiveSetLookup
+# From a clone with nothing installed, the same module loads by file:
+# include("src/ActiveSetLookup.jl"); using .ActiveSetLookup
 
 # Inside a step. `atoms` is the active set's own Vector, `g` the gradient;
 # the step has just minimised dot(g, a) over atoms (active_set_argminmax),
@@ -80,7 +82,7 @@ index dispatches on the atoms' element type (`SparseMatrixCSC` and
 `SparseVector` to a key over stored *positions*, a dense `Array` to a key
 over leading *values*), and every bucket hit is confirmed against the whole
 atom before it is trusted, so a collision costs a comparison and never a
-wrong answer. The module is four small files, `src/certificate.jl`,
+wrong answer. Behind `src/ActiveSetLookup.jl` sit four small files, `src/certificate.jl`,
 `src/keys.jl`, `src/confirm.jl`, `src/index.jl`, each readable on its own.
 
 ## What was measured
@@ -147,18 +149,21 @@ means changing `pairwise.jl` itself.
 With Julia 1.10 or later, from the repository root:
 
 ```
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia --project=. measurement/run.jl                     # results.csv, results_algorithms.csv
-julia --project=. microbenchmark/run_certificate.jl      # the certificate against key, hash and scan
-julia --project=. microbenchmark/run.jl                  # the full-hash-vs-scan sweep
-julia --project=. microbenchmark/run_prefix.jl           # the value-prefix-hash sweep
-julia --project=. microbenchmark/run_lifecycle.jl        # sparse-pattern key + trie, full lifecycle
-julia --project=. microbenchmark/run_pattern_key_reps.jl # UInt64/NTuple/Vector{Int} representations
-julia --project=. test/test_certificate.jl               # the certificate's own correctness tests
-julia --project=. test/test_public_api.jl                # the index's own correctness tests
+julia --project=. -e 'using Pkg; Pkg.test()'                       # Aqua, then the certificate, the index and the guide
+julia --project=measurement -e 'using Pkg; Pkg.instantiate()'
+julia --project=measurement measurement/run.jl                     # results.csv, results_algorithms.csv
+julia --project=microbenchmark -e 'using Pkg; Pkg.instantiate()'
+julia --project=microbenchmark microbenchmark/run_certificate.jl   # the certificate against key, hash and scan
+julia --project=microbenchmark microbenchmark/run.jl               # the full-hash-vs-scan sweep
+julia --project=microbenchmark microbenchmark/run_prefix.jl        # the value-prefix-hash sweep
+julia --project=microbenchmark microbenchmark/run_lifecycle.jl     # sparse-pattern key + trie, full lifecycle
+julia --project=microbenchmark microbenchmark/run_pattern_key_reps.jl # UInt64/NTuple/Vector{Int} representations
 ```
 
-Every script writes a committed `results*.csv` beside itself; `MEASURING.md`
+The package's own environment holds nothing but `SparseArrays`; the two
+script folders each carry a `Project.toml` with FrankWolfe.jl, so the
+library being measured never becomes a dependency of the code proposed to
+it. Every script writes a committed `results*.csv` beside itself; `MEASURING.md`
 states, once, how every timing here was taken and what it does not claim
 (none are asserted by CI, only run end to end; the one assertion is that
 the certificate never contradicts the scan). `TESTING.md` covers every

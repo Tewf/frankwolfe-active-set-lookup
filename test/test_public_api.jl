@@ -13,12 +13,11 @@
 # run_pattern_key_reps.jl(4), test_equivalence.jl(5), test_lifecycle.jl(6),
 # test_fold_quality.jl(7), test_dispatch.jl(8)).
 #
-# Run: julia --project=. test/test_public_api.jl
+# Run, with the other suites: julia --project=. -e 'using Pkg; Pkg.test()'
 
 using Test, Random, FrankWolfe, SparseArrays
 
-include(joinpath(@__DIR__, "..", "src", "ActiveSetLookup.jl"))
-using .ActiveSetLookup
+using ActiveSetLookup
 
 const MASTER_SEED = 9
 const BIRKHOFF_N = 20

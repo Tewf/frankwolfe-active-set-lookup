@@ -1,7 +1,11 @@
 # What is where
 
 ```
-Project.toml               dependencies: FrankWolfe, TimerOutputs, LinearAlgebra
+Project.toml                the package ActiveSetLookup: name, version, its
+                             one dependency (SparseArrays), compat bounds, and
+                             the test target (Aqua, FrankWolfe for real atoms)
+CONTRIBUTING.md             how this repository is written, how to work on it,
+                             and what is proposed upstream, for the maintainers
 Manifest.toml               the exact resolved versions; gitignored, see .gitignore
 src/                        the method itself, usable without reading a benchmark
   ActiveSetLookup.jl          the module: includes the four files below and
@@ -38,6 +42,8 @@ guide/                      Frank-Wolfe from zero for a reader who has never
 test/                       tests for src/ and guide/, independent of
                              microbenchmark/'s own test suite (which tests the
                              comparisons that led to this design)
+  runtests.jl                 Pkg.test()'s entry: Aqua's package-quality checks,
+                               then the three suites below, each in its own module
   test_public_api.jl          @test: build_index dispatch, lookup-vs-scan
                                equivalence, push_atom!/delete_atom! lifecycle,
                                the signed-zero fix, a forced fold collision
@@ -47,12 +53,14 @@ test/                       tests for src/ and guide/, independent of
                                the fall-back except on a tie; ties, duplicates,
                                NaN/Inf gradients, signed zero
   test_guide.jl               @test: the guide's oracle minimises, plain FW
-                               meets the 1/t bound inside the polytope, the active set is
-                               a valid mixture after every step, the three
+                               meets the 1/t bound inside the polytope, the
+                               active set is a valid mixture after every step, the three
                                lookups agree, the oracle's vertex is never active
                                in the FW branch, the worked n=3 example
 measurement/                real runs, instrumented, on problems where the
                              active set grows
+  Project.toml                the harness's own environment: FrankWolfe.jl and
+                               TimerOutputs, kept out of the package's dependencies
   instrumentation.jl          times, counts, and counts hits for find_atom without
                                editing FrankWolfe.jl; RecordingLMO keeps the
                                gradient so the certificate can be tallied at
@@ -65,6 +73,8 @@ measurement/                real runs, instrumented, on problems where the
                                   the per-iteration rates the sweeps weight by
   results_algorithms.csv         the same columns for PFW, lazy PFW and BCG
 microbenchmark/              the lookup itself, isolated from any solver
+  Project.toml                 the sweeps' own environment: FrankWolfe.jl for real
+                                atoms, kept out of the package's dependencies
   lookup_methods.jl            linear scan, full-atom Dict, and prefix-hash lookup
                                 (dense and sparse-atom variants), copied from find_atom
   timing.jl                     warm up, batch to clear 1 ms, fastest of five, plus a
@@ -154,8 +164,9 @@ DECISIONS.md                every judgement call this repository made, and
                             the ones still open
 CITATION.cff                how to cite this repository
 LICENSE                     MIT
-.github/workflows/ci.yml    runs every script on every push and asserts
-                             every test_*.jl file's @tests; times nothing
+.github/workflows/ci.yml    Pkg.test() on Julia 1.10 and the newest release, then
+                             every script end to end and every microbenchmark
+                             test_*.jl's @tests; times nothing
 explain/                    gitignored; HTML explainers for one reader, never shipped
 ```
 

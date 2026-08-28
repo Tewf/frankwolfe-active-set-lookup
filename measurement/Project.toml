@@ -1,0 +1,11 @@
+# The environment the measurement harness runs in: FrankWolfe.jl, the
+# library being measured, and the timer. The package under test is not a
+# dependency here; the harness instruments FrankWolfe.jl's own scan.
+[deps]
+FrankWolfe = "f55ce6ea-fdc5-4628-88c5-0087fe54bd30"
+TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
+
+[compat]
+FrankWolfe = "0.6"
+TimerOutputs = "0.5"
+julia = "1.10"

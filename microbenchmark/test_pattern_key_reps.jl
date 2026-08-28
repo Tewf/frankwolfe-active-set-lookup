@@ -20,7 +20,7 @@
 # (two different patterns, one folded bucket) does not depend on how they
 # were found.
 #
-# Run: julia --project=. microbenchmark/test_pattern_key_reps.jl
+# Run: julia --project=microbenchmark microbenchmark/test_pattern_key_reps.jl
 
 using Test, SparseArrays
 

@@ -17,7 +17,7 @@
 # lookups (sparse atoms first, then dense, interleaved) still routes each
 # one correctly rather than "sticking" to whichever branch ran first.
 #
-# Run: julia --project=. microbenchmark/test_dispatch.jl
+# Run: julia --project=microbenchmark microbenchmark/test_dispatch.jl
 
 using Test, Random
 
