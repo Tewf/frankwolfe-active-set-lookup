@@ -1,7 +1,7 @@
 name = "ActiveSetLookup"
 uuid = "d4a325c3-df04-4d1a-a86c-f2c64ab8ff52"
 authors = ["Mohamed Ali Tewfik Hamlil <soudainx@gmail.com>"]
-version = "0.2.0"
+version = "0.2.1"
 
 [deps]
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"

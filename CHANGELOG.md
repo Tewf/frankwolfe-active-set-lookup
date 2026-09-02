@@ -4,7 +4,7 @@ Versions are `Project.toml`'s and `CITATION.cff`'s, tagged `vX.Y.Z`. Dates
 are the commit that made the change; `DECISIONS.md` has the reasoning
 behind each entry, `REJECTED.md` what each one replaced.
 
-## Unreleased
+## 0.2.1, 2026-09-03
 
 - `certified_lookup` compares the best atom to the query before it consults
   the certificate. The old order certified a present atom absent whenever it

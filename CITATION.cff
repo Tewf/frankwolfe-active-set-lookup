@@ -14,8 +14,8 @@ abstract: >-
   every measured active-set size. Every number is measured on real runs before
   anything is proposed upstream.
 type: software
-version: 0.2.0
-date-released: "2026-08-27"
+version: 0.2.1
+date-released: "2026-09-03"
 license: MIT
 repository-code: "https://github.com/Tewf/frankwolfe-active-set-lookup"
 authors:
