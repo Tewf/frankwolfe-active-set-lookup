@@ -15,6 +15,10 @@ behind each entry, `REJECTED.md` what each one replaced.
 - `confirm_match` gains the generic `isequal` method that `_unsafe_equal` has
   beside its dense and sparse ones, so a pair crossing families is compared
   instead of raising a `MethodError`.
+- `microbenchmark/results_certificate_*.csv` re-measured on the new order. The
+  miss path is unchanged (10.7 / 10.4 / 10.1 ns against 10.5 / 10.3 / 10.2):
+  the equality now asked first exits at the first differing element, so it
+  costs a comparison or two, not a whole atom.
 - `measurement/run_end_to_end.jl` and `results_end_to_end.csv`: pairwise
   Frank-Wolfe and BPCG timed end to end, FrankWolfe.jl master against the
   branch that applies the certificate at its call sites. At n=60, 71.4 s
