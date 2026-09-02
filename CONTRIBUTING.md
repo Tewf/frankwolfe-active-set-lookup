@@ -60,10 +60,11 @@ tag `vX.Y.Z` on the commit that bumps both.
 
 ## For FrankWolfe.jl maintainers
 
-What is proposed upstream is the certificate alone, a few lines at each
-call site, not this package, and it exists as code:
+What went upstream is the certificate alone, a few lines at each call site,
+not this package.
 [ZIB-IOL/FrankWolfe.jl#649](https://github.com/ZIB-IOL/FrankWolfe.jl/pull/649),
-from the branch `certificate-244` of `Tewf/FrankWolfe.jl`, adds `find_atom(active_set, atom, direction, best_index, best_value)`,
+from the branch `certificate-244` of `Tewf/FrankWolfe.jl`, was merged on
+2026-09-02 as `6b72bd97`, closing issue #244. It adds `find_atom(active_set, atom, direction, best_index, best_value)`,
 which takes the minimum `active_set_argminmax` already computed, and uses
 it at the BPCG, pairwise, blended-CG and block-coordinate call sites;
 `lp_separation_oracle` returns the position beside the atom. The

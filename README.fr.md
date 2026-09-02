@@ -26,7 +26,10 @@ de l'atome, une clé structurelle repliée avec confirmation exacte bat le
 balayage à toutes les tailles mesurées et reste ici comme solution de
 repli. Ceci répond à
 [`ZIB-IOL/FrankWolfe.jl#244`](https://github.com/ZIB-IOL/FrankWolfe.jl/issues/244),
-ouverte depuis 2021 sans réponse. Il a fallu plusieurs revirements pour
+ouverte depuis 2021 sans réponse ; le certificat a été intégré à
+FrankWolfe.jl le 2026-09-02
+([#649](https://github.com/ZIB-IOL/FrankWolfe.jl/pull/649)), ce qui l'a
+close. Il a fallu plusieurs revirements pour
 en arriver là, dont un premier brouillon concluant que hacher ne sert à
 rien et un deuxième qui s'arrêtait au hachage ; `REJECTED.md` (en anglais) dit
 ce qui a été essayé puis refusé, chiffres à l'appui.
@@ -182,7 +185,7 @@ julia --project=microbenchmark microbenchmark/run_pattern_key_reps.jl # représe
 L'environnement du paquet ne contient que `SparseArrays` ; les deux
 dossiers de scripts portent chacun un `Project.toml` avec FrankWolfe.jl,
 si bien que la bibliothèque mesurée ne devient jamais une dépendance du
-code qu'on lui propose. Chaque script écrit un `results*.csv` committé à
+code qu'on lui apporte. Chaque script écrit un `results*.csv` committé à
 côté de lui ;
 `MEASURING.md` dit, une fois, comment chaque temps a été pris et ce qu'il
 n'affirme pas (aucun n'est vérifié par la CI, qui ne fait que les
@@ -200,5 +203,5 @@ problème ailleurs (`copt`, `linearFW`) s'y prennent : `REJECTED.md`,
 `references.md`. Ce que chaque test protège : `TESTING.md`. La machine et
 son bruit : `MEASURING.md`. Chaque choix et chaque question ouverte :
 `DECISIONS.md`. Chaque fichier, en une ligne : `what-is-where.md`. Comment
-ce dépôt est écrit, comment y travailler et ce qui est proposé en amont,
+ce dépôt est écrit, comment y travailler et ce qui est parti en amont,
 à l'adresse des mainteneurs : `CONTRIBUTING.md`. Tous en anglais.

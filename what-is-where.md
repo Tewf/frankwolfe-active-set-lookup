@@ -5,7 +5,7 @@ Project.toml                the package ActiveSetLookup: name, version, its
                              one dependency (SparseArrays), compat bounds, and
                              the test target (Aqua, FrankWolfe for real atoms)
 CONTRIBUTING.md             how this repository is written, how to work on it,
-                             and what is proposed upstream, for the maintainers
+                             and what went upstream, for the maintainers
 Manifest.toml               the exact resolved versions; gitignored, see .gitignore
 src/                        the method itself, usable without reading a benchmark
   ActiveSetLookup.jl          the module: includes the four files below and

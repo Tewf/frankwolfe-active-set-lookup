@@ -24,7 +24,10 @@ caller that has only the atom, a folded structural hash with exact
 confirmation beats the scan at every measured size and stays here as the
 fall-back. This answers
 [`ZIB-IOL/FrankWolfe.jl#244`](https://github.com/ZIB-IOL/FrankWolfe.jl/issues/244),
-open since 2021 with no replies. It took several reversals to get here,
+open since 2021 with no replies; the certificate was merged into
+FrankWolfe.jl on 2026-09-02
+([#649](https://github.com/ZIB-IOL/FrankWolfe.jl/pull/649)), closing it.
+It took several reversals to get here,
 including a first draft that concluded hashing does not help and a second
 that stopped at the hash; `REJECTED.md` says what was tried and refused,
 with the numbers.
@@ -172,8 +175,8 @@ julia --project=microbenchmark microbenchmark/run_pattern_key_reps.jl # UInt64/N
 
 The package's own environment holds nothing but `SparseArrays`; the two
 script folders each carry a `Project.toml` with FrankWolfe.jl, so the
-library being measured never becomes a dependency of the code proposed to
-it. Every script writes a committed `results*.csv` beside itself; `MEASURING.md`
+library being measured never becomes a dependency of the code contributed
+to it. Every script writes a committed `results*.csv` beside itself; `MEASURING.md`
 states, once, how every timing here was taken and what it does not claim
 (none are asserted by CI, only run end to end; the one assertion is that
 the certificate never contradicts the scan). `TESTING.md` covers every
@@ -188,5 +191,5 @@ that do solve this elsewhere (`copt`, `linearFW`) do it: `REJECTED.md`,
 `references.md`. What each test protects: `TESTING.md`. The machine and
 its noise: `MEASURING.md`. Every judgement call and open question:
 `DECISIONS.md`. Every file, one line each: `what-is-where.md`. How this
-repository is written, how to work on it, and what is proposed upstream,
+repository is written, how to work on it, and what went upstream,
 addressed to the maintainers: `CONTRIBUTING.md`.
