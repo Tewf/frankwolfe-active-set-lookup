@@ -6,6 +6,15 @@ behind each entry, `REJECTED.md` what each one replaced.
 
 ## Unreleased
 
+- `certified_lookup` compares the best atom to the query before it consults
+  the certificate. The old order certified a present atom absent whenever it
+  was stored in a different representation than the query, because the two
+  `dot` calls are then different methods and can differ by an ulp: 98 of 200
+  seeded Float32-stored/Float64-queried lookups, and 10 of 50 on dense copies
+  of sparse Birkhoff vertices. `test/test_certificate.jl` covers both.
+- `confirm_match` gains the generic `isequal` method that `_unsafe_equal` has
+  beside its dense and sparse ones, so a pair crossing families is compared
+  instead of raising a `MethodError`.
 - `measurement/run_end_to_end.jl` and `results_end_to_end.csv`: pairwise
   Frank-Wolfe and BPCG timed end to end, FrankWolfe.jl master against the
   branch that applies the certificate at its call sites. At n=60, 71.4 s

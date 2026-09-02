@@ -16,16 +16,19 @@
 # candidate is `s` itself, since an active copy of `v` scores exactly
 # `<g,v>` and `s` is the atom that scores lowest.
 #
-# Floating point does not weaken the argument, because it never compares
-# a stored value to a recomputed one: `<g,v>` and each `<g,a>` are the same
-# `dot` on the same `g`, and the same `dot` on equal inputs returns the same
-# Float64 (checked on OpenBLAS and SparseArrays, both orientations, in
-# `test/test_certificate.jl`). A NaN or Inf in `g` makes the comparison
-# false, which is the fall-back direction: a search still runs. The
-# precondition is on the caller, and it is exactly what `argminmax` already
-# gives: `best_value` is the minimum of `dot(g, a)` over the atoms, and
-# `query_value` is `dot(g, query)` by the same `dot`. `METHOD.md` has the
-# argument in full and the reason every measured BPCG call was a miss.
+# Floating point says in what order the two questions may be asked. The same
+# `dot` on equal inputs returns the same Float64 (checked on OpenBLAS and
+# SparseArrays, both orientations, in `test/test_certificate.jl`), so the
+# comparison is exact as long as `query_value` and the values behind
+# `best_value` were computed the same way. They are not when one atom is held
+# in two representations: a dense stored copy of a sparse vertex is scored by
+# a different `dot`, and the two results can differ by an ulp, which certifies
+# a present atom absent. Equality does not have that weakness, so it is asked
+# first: `atoms[best_index]` is compared to the query, and only then does the
+# certificate rule on the rest. This is the order FrankWolfe.jl's `find_atom`
+# takes. A NaN or Inf in `g` makes the comparison false, which is the
+# fall-back direction: a search still runs. `METHOD.md` has the argument in
+# full and the reason every measured BPCG call was a miss.
 module AtomCertificate
 
 using ..AtomConfirm
@@ -59,11 +62,14 @@ end
 
 Position of `query` in `atoms`, or -1, given the active set's best atom.
 `best_index` and `best_value` are `argmin` and `min` of `dot(g, a)` over
-`atoms`; `query_value` is `dot(g, query)`. `fallback(atoms, query)` runs
-only on a tie between distinct atoms, which is where `lookup_atom` over a
-built index (`index.jl`) belongs if the caller keeps one; the plain scan is
-the default because a tie is rare enough that its cost does not register
-(`microbenchmark/results_certificate_*.csv`).
+`atoms`; `query_value` is `dot(g, query)`. Compares `atoms[best_index]`
+against the query first, certifies absence when `query_value < best_value`,
+and calls `fallback(atoms, query)` otherwise, which is where `lookup_atom`
+over a built index (`index.jl`) belongs if the caller keeps one; the plain
+scan is the default because a tie between distinct atoms is rare enough
+that its cost does not register
+(`microbenchmark/results_certificate_*.csv`). Pass `best_index = -1` when
+no minimum is available; every query then reaches the fall-back.
 
 The answer matches `scan_atoms` whenever `atoms` holds no duplicate, which
 is the invariant `find_atom` exists to keep; with duplicates it still
@@ -79,8 +85,8 @@ function certified_lookup(
     fallback=scan_atoms,
 )
     isempty(atoms) && return -1
+    best_index > 0 && confirm_match(atoms[best_index], query) && return Int(best_index)
     certified_absent(query_value, best_value) && return -1
-    @inbounds confirm_match(atoms[best_index], query) && return Int(best_index)
     return fallback(atoms, query)
 end
 
@@ -95,6 +101,12 @@ atom, which on sparse atoms is an order of magnitude cheaper than one `==`.
 A NaN fingerprint (a NaN or two opposite infinities in `g`) equals nothing,
 itself included, so it says nothing about any atom and the walk hands over
 to the scan rather than miss a present atom.
+
+Unlike the form above, this one has no equality step to fall back on: the
+fingerprint is the only filter, so `values[idx]` must be `dot(g, atoms[idx])`
+with `query_value = dot(g, query)` by that same `dot`. An atom held in a
+different representation than the query scores through a different `dot`,
+and this method will not find it.
 """
 function certified_lookup(
     atoms::AbstractVector,

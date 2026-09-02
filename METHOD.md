@@ -66,15 +66,27 @@ without lazification, and blended conditional gradients.
 
 ## What the certificate rests on, in floating point
 
-The argument compares `<g, v>` with values of the same form, never a stored
-value with a recomputed one. Its only assumption is that the same `dot` on
+The argument's one assumption is that the same `dot` on
 equal inputs returns the same Float64: if `v == a` elementwise then
 `dot(g, v) == dot(g, a)` bit for bit. That holds for a deterministic
 kernel, which is what BLAS and SparseArrays provide; `test/test_certificate.jl`
 checks it on this machine's OpenBLAS for dense vectors (fresh copies, both
 argument orders, views at odd offsets, since `blended_pairwise.jl` writes
 `dot(gradient, v)` while `active_set_argminmax` writes `dot(atom,
-direction)`) and on permutation matrices. A NaN or Inf in `g` makes the
+direction)`) and on permutation matrices.
+
+The assumption stops holding when one atom is held in two representations.
+A dense stored copy of a sparse vertex is scored by a different `dot` than
+the vertex itself, so the two values can differ by an ulp and the
+certificate rules a present atom absent: on 8x8 Birkhoff vertices stored as
+`Matrix` and queried with the sparse originals, 10 of 50 seeded queries
+answered -1 for an atom that was there. Equality has no such weakness, so
+`certified_lookup` compares `atoms[best_index]` to the query first and
+consults the certificate only after. FrankWolfe.jl's `find_atom` takes the
+same order. The fingerprint form has no equality step to fall back on and
+so keeps the assumption as a precondition; its docstring says so.
+
+A NaN or Inf in `g` makes the
 comparison false, which is the fall-back direction, and a search runs; the
 fingerprint form (`certified_lookup` over every `dot(g, a)`) hands a NaN
 fingerprint straight to the scan for the same reason. Signed zeros cannot

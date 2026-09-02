@@ -227,3 +227,51 @@ end
     @test scan_atoms([[1.0, 2.0], [3.0, 4.0]], [3.0, 4.0]) == 2
     @test scan_atoms([[1.0, 2.0], [3.0, 4.0]], [9.0, 9.0]) == -1
 end
+
+@testset "a present atom in another representation is found, not certified absent" begin
+    # `best_value` is `dot(g, stored)` and `query_value` is `dot(g, query)`.
+    # When the same atom is stored densely and queried sparsely, those are two
+    # different `dot` methods on the same numbers, and they can differ by an
+    # ulp; the certificate then rules a present atom absent. Equality is exact
+    # across representations, so it is asked first. This is the case that
+    # FrankWolfe.jl's review found on 8x8 Birkhoff vertices.
+    rng = Random.Xoshiro(MASTER_SEED + 6)
+    n = 8
+    permutations = [Random.randperm(rng, n) for _ in 1:12]
+    sparse_atoms = [sparse(1:n, p, ones(n), n, n) for p in permutations]
+    stored = [Matrix{Float64}(a) for a in sparse_atoms]
+    for trial in 1:50
+        g = randn(rng, n, n)
+        _, best, best_value = caller_state(stored, g)
+        query = sparse_atoms[best]
+        got = certified_lookup(stored, query, dot(g, query), best, best_value)
+        report_and_check(got == best, "dense stored / sparse query trial=$trial: got $got expected $best")
+    end
+end
+
+@testset "the same atom at two element types is found" begin
+    # Same hazard without sparsity: a Float32 atom and its Float64 copy hold
+    # the same numbers and accumulate `dot` differently.
+    rng = Random.Xoshiro(MASTER_SEED + 7)
+    for trial in 1:50
+        stored = [rand(rng, Float32, DENSE_DIM) for _ in 1:6]
+        g = randn(rng, DENSE_DIM)
+        _, best, best_value = caller_state(stored, g)
+        query = Array{Float64}(stored[best])
+        got = certified_lookup(stored, query, dot(g, query), best, best_value)
+        report_and_check(got == best, "Float32 stored / Float64 query trial=$trial: got $got expected $best")
+    end
+end
+
+@testset "confirm_match compares across families rather than refusing" begin
+    # `_unsafe_equal` has a generic `isequal` method beside its dense and
+    # sparse ones; without the same third method a mixed pair raises a
+    # MethodError instead of answering.
+    dense = [1.0 0.0; 0.0 1.0]
+    same = sparse(dense)
+    other = sparse([0.0 1.0; 1.0 0.0])
+    @test confirm_match(dense, same)
+    @test confirm_match(same, dense)
+    @test !confirm_match(dense, other)
+    @test scan_atoms([other, dense], same) == 2
+end
