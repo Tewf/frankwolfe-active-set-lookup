@@ -157,6 +157,15 @@ counts and the iterates, not the seconds. And the registry's 0.6.4 is not
 master: an upstream change to BPCG's dual step (#647) moves lazy BPCG's
 iterates, which is why the comparison is against master.
 
+## Deviations
+
+Every change of method, and every correction made after a number was taken, is
+written where it happened, with the numbers. `REJECTED.md`: the first answer,
+which was wrong, and each method tried and refused. `DECISIONS.md`: the gap in
+the soundness argument. `MEASURING.md`: the harness's own tally, taken out of
+the run time on 2026-08-28, which moved pairwise Frank-Wolfe on Birkhoff n=60
+from 98.8 s to 68.3 s.
+
 ## Reproducing the measurements
 
 With Julia 1.10 or later, from the repository root:

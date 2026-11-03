@@ -166,6 +166,16 @@ itérés, non les secondes. Et la 0.6.4 du registre n'est pas `master` : un
 changement en amont du pas dual de BPCG (#647) déplace les itérés du BPCG
 paresseux, d'où la comparaison contre `master`.
 
+## Écarts
+
+Chaque changement de méthode, et chaque correction faite après qu'un chiffre a
+été pris, est écrit à l'endroit où il s'est produit, avec les chiffres.
+`REJECTED.md` : la première réponse, qui était fausse, et chaque méthode essayée
+puis refusée. `DECISIONS.md` : la lacune de l'argument de correction.
+`MEASURING.md` : le décompte propre au banc de mesure, sorti du temps d'exécution
+le 2026-08-28, qui a fait passer le Frank-Wolfe par paires sur Birkhoff n=60 de
+98,8 s à 68,3 s.
+
 ## Reproduire les mesures
 
 Avec Julia 1.10 ou plus récent, depuis la racine du dépôt :
