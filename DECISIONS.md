@@ -506,8 +506,8 @@ every run reads 0 calls, 0 hits and a 0% lookup share. The CI step would still
 pass, since it checks line counts and column names. 0.6.5 also rewrote blended
 conditional gradients on the corrective-step interface, and on the L-inf box
 (d=3000, 15,000 iterations) that run takes over 15 minutes where 0.6.4 takes
-5 seconds: 2 s at 3000 iterations, 11 s at 6000, 56 s at 9000 on Julia 1.12.7,
-about five times more per 3000 iterations. The job was cancelled at its
+5 seconds: 2 s at 3000 iterations, 11 s at 6000, 56 s at 9000 and 821 s at
+12,000 on Julia 1.12.7, each step several times the last. The job was cancelled at its
 30-minute limit on 17 Nov, with the same job at 12 minutes on 2 Sept and
 3 Nov.
 
