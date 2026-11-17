@@ -6,6 +6,11 @@ FrankWolfe = "f55ce6ea-fdc5-4628-88c5-0087fe54bd30"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
 [compat]
-FrankWolfe = "0.6"
+# Pinned to the registry's 0.6.4, the release these measurements describe
+# (DECISIONS.md, "The harness is pinned to the release it measures"): from
+# 0.6.5 the call sites ask a five-argument find_atom that instrumentation.jl
+# does not count, and blended conditional gradients on the L-inf box no longer
+# finishes inside the CI job's limit.
+FrankWolfe = "=0.6.4"
 TimerOutputs = "0.5"
 julia = "1.10"

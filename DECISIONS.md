@@ -493,6 +493,33 @@ minimum being in scope at its call site. The end-to-end script is not in
 CI: it needs a checkout of the branch, and its numbers are timings, which
 CI asserts nothing about.
 
+## The harness is pinned to the release it measures: what changed, and what is still a judgement call
+
+**The pin.** `measurement/Project.toml` and `microbenchmark/Project.toml` say
+`FrankWolfe = "=0.6.4"`. The package's own compat stays `"0.6"`, so `Pkg.test`
+keeps running on whatever the registry has newest.
+
+**Why.** FrankWolfe.jl 0.6.5 (14 Nov) contains the certificate (#649), so the
+call sites now ask `find_atom(active_set, atom, direction, best_index,
+best_value)`, and `instrumentation.jl` counts the two-argument method only:
+every run reads 0 calls, 0 hits and a 0% lookup share. The CI step would still
+pass, since it checks line counts and column names. 0.6.5 also rewrote blended
+conditional gradients on the corrective-step interface, and on the L-inf box
+(d=3000, 15,000 iterations) that run takes over 15 minutes where 0.6.4 takes
+5 seconds: 2 s at 3000 iterations, 11 s at 6000, 56 s at 9000 on Julia 1.12.7,
+about five times more per 3000 iterations. The job was cancelled at its
+30-minute limit on 17 Nov, with the same job at 12 minutes on 2 Sept and
+3 Nov.
+
+**Rejected.** Raising the limit: the job would run for an hour to record zeros.
+Capping that one run's iterations: the numbers would still be zeros. Counting
+the five-argument method too: that is the work of measuring 0.6.5, a new
+experiment, and the baseline here is the release the README's tables describe.
+
+**Still a judgement call.** Measuring 0.6.5 itself, with the instrumentation
+extended. The harness stays on 0.6.4 until that is done, and nothing in CI will
+say when the pin has grown old.
+
 ## Open questions, unresolved by this repository
 
 - **Pairwise Frank-Wolfe end to end: measured on 2026-08-28**, see the

@@ -4,6 +4,21 @@ Versions are `Project.toml`'s and `CITATION.cff`'s, tagged `vX.Y.Z`. Dates
 are the commit that made the change; `DECISIONS.md` has the reasoning
 behind each entry, `REJECTED.md` what each one replaced.
 
+## Unreleased
+
+- `measurement/` and `microbenchmark/` pin FrankWolfe.jl to the registry's
+  0.6.4. On 17 Nov the CI job « Run every measurement script end to end » was
+  cancelled at its 30-minute limit on every run, after passing on 2 Sept
+  (12 min) and 3 Nov (12 min). The only change in its resolved environment was
+  FrankWolfe.jl 0.6.4 to 0.6.5 (Julia 1.13.3 to 1.13.4, StaticArrays 1.9.24 to
+  1.9.25 as well). Timed per run on Julia 1.12.7, 0.6.5 is no slower, within noise, on
+  eleven of the twelve algorithm and problem pairs, but blended conditional
+  gradients on the L-inf box (d=3000, 15,000 iterations) takes over 15 minutes
+  against 5 seconds, and every run records zero `find_atom` calls, since the
+  call sites ask the five-argument method that `instrumentation.jl` does not
+  count. The package's own compat stays `0.6`; `Pkg.test` still runs on the
+  latest release.
+
 ## 0.2.1, 2026-09-03
 
 - `certified_lookup` compares the best atom to the query before it consults
