@@ -7,7 +7,8 @@
 # worked n=3 example from guide/README.md is checked by hand at the end.
 #
 # Seeded with MASTER_SEED = 11 (10 is test_certificate.jl's, 9 is
-# test_public_api.jl's, 5-8 the microbenchmark tests', 1 and 4 the sweeps').
+# test_public_api.jl's, 5-8 the microbenchmark tests', 1 and 4 the sweeps'),
+# and 200-219 for the search for a trajectory that drops an atom.
 #
 # Run: julia --project=. test/test_guide.jl
 
@@ -110,10 +111,27 @@ end
         @test is_consistent(A)
         @test length(A.atoms) == records[end].active_atoms
     end
-    # Something was dropped along the way (a capped pairwise step or a full FW step).
-    A, records = blended_pairwise(problem, lmo, x0; iterations=3000, epsilon=1e-9, lookup=IndexLookup(ActiveSet(x0)))
-    sizes = [r.active_atoms for r in records]
-    @test any(sizes[i+1] < sizes[i] for i in 1:length(sizes)-1)
+    # Something was dropped along the way (a capped pairwise step or a full FW step). Whether one
+    # seeded trajectory drops depends on the random stream, and the stream is not the same on every
+    # Julia: on 1.13.3 the trajectory above never dropped an atom (CI of 2026-11-03) though it did
+    # on 1.10 and 1.12. About two seeds in five drop, so look through twenty fixed seeds, none used
+    # elsewhere, for a trajectory that does; the claim tested is that drops happen, not that this
+    # one seed shows one.
+    dropped = false
+    for seed in 200:219
+        rng2 = Random.Xoshiro(seed)
+        problem2 = inside_target(rng2, lmo, 6)
+        x02 = extreme_point(lmo, randn(rng2, 4, 4))
+        A2, records2 = blended_pairwise(problem2, lmo, x02; iterations=3000, epsilon=1e-9,
+                                        lookup=IndexLookup(ActiveSet(x02)))
+        @test is_consistent(A2)
+        sizes = [r.active_atoms for r in records2]
+        if any(sizes[i+1] < sizes[i] for i in 1:length(sizes)-1)
+            dropped = true
+            break
+        end
+    end
+    @test dropped
 end
 
 @testset "the worked example from guide/README.md" begin
